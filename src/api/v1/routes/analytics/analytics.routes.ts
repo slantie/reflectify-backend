@@ -19,6 +19,8 @@ import {
   getAllFacultyPerformanceData,
   getTotalResponses,
   getSemesterDivisions,
+  getFilterDictionary,
+  getCompleteAnalyticsData,
 } from '../../../../controllers/analytics/analytics.controller';
 import {
   isAuthenticated,
@@ -156,6 +158,28 @@ router.get(
     Designation.AsstProf
   ),
   getSemesterDivisions
+);
+
+// NEW: Route for filter dictionary (Academic Years → Departments → Subjects)
+router.get(
+  '/filter-dictionary',
+  authorizeRoles(
+    Designation.SUPER_ADMIN,
+    Designation.HOD,
+    Designation.AsstProf
+  ),
+  getFilterDictionary
+);
+
+// NEW: Route for complete analytics data with filters
+router.get(
+  '/complete-data',
+  authorizeRoles(
+    Designation.SUPER_ADMIN,
+    Designation.HOD,
+    Designation.AsstProf
+  ),
+  getCompleteAnalyticsData
 );
 
 export default router;

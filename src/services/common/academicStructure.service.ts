@@ -10,9 +10,9 @@ import { Department } from '@prisma/client'; // Import Department type for retur
 
 class AcademicStructureService {
   /**
-   * Retrieves the complete academic structure, including departments, semesters, and divisions.
+   * Retrieves the complete academic structure, including departments, semesters, divisions, and academic year information.
    * Filters out all soft-deleted records at each level.
-   * @returns {Promise<Department[]>} An array of Department objects with nested semesters and divisions.
+   * @returns {Promise<Department[]>} An array of Department objects with nested semesters (including academic year info) and divisions.
    */
   public async getAcademicStructure(): Promise<Department[]> {
     try {
@@ -26,12 +26,23 @@ class AcademicStructureService {
               isDeleted: false, // Filter out soft-deleted semesters
             },
             include: {
+              academicYear: {
+                select: {
+                  id: true,
+                  yearString: true,
+                  isActive: true,
+                },
+              },
               divisions: {
                 where: {
                   isDeleted: false, // Filter out soft-deleted divisions
                 },
               },
             },
+            orderBy: [
+              { academicYear: { yearString: 'desc' } }, // Order by academic year descending (most recent first)
+              { semesterNumber: 'asc' }, // Then by semester number ascending
+            ],
           },
         },
         orderBy: {
@@ -45,6 +56,61 @@ class AcademicStructureService {
         error
       );
       throw new AppError('Failed to retrieve academic structure.', 500);
+    }
+  }
+
+  /**
+   * Retrieves the academic structure for a specific academic year.
+   * @param academicYearId - The ID of the academic year to filter by.
+   * @returns {Promise<Department[]>} An array of Department objects with nested semesters and divisions for the specified academic year.
+   */
+  public async getAcademicStructureByYear(
+    academicYearId: string
+  ): Promise<Department[]> {
+    try {
+      const academicStructure = await prisma.department.findMany({
+        where: {
+          isDeleted: false, // Filter out soft-deleted departments
+        },
+        include: {
+          semesters: {
+            where: {
+              isDeleted: false, // Filter out soft-deleted semesters
+              academicYearId: academicYearId, // Filter by academic year
+            },
+            include: {
+              academicYear: {
+                select: {
+                  id: true,
+                  yearString: true,
+                  isActive: true,
+                },
+              },
+              divisions: {
+                where: {
+                  isDeleted: false, // Filter out soft-deleted divisions
+                },
+              },
+            },
+            orderBy: {
+              semesterNumber: 'asc', // Order by semester number ascending
+            },
+          },
+        },
+        orderBy: {
+          name: 'asc', // Order departments by name
+        },
+      });
+      return academicStructure;
+    } catch (error: any) {
+      console.error(
+        'Error in AcademicStructureService.getAcademicStructureByYear:',
+        error
+      );
+      throw new AppError(
+        'Failed to retrieve academic structure for the specified year.',
+        500
+      );
     }
   }
 }

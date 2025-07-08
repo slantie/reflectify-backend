@@ -67,6 +67,15 @@ interface ProcessedData {
   [collegeName: string]: CollegeData;
 }
 
+interface FlaskResponse {
+  results: ProcessedData;
+  status: {
+    success: boolean;
+    message: string;
+    errors?: string[];
+  };
+}
+
 interface AllocationBatchItem {
   departmentId: string;
   facultyId: string;
@@ -435,7 +444,7 @@ class FacultyMatrixUploadService {
    * @param academicYearString The academic year string (e.g., "2024-2025").
    * @param semesterType The type of semester (ODD/EVEN).
    * @param deptAbbreviation The abbreviation of the department.
-   * @returns {Promise<{ message: string; rowsAffected: number; totalRowsSkippedDueToMissingEntities: number; skippedRowsDetails: string[]; }>}
+   * @returns {Promise<{ message: string; rowsAffected: number; missingFaculties: string[]; missingSubjects: string[]; totalRowsSkippedDueToMissingEntities: number; skippedRowsDetails: string[]; }>}
    * A summary of the processing results.
    * @throws AppError if file processing fails or essential data is missing.
    */
@@ -447,12 +456,24 @@ class FacultyMatrixUploadService {
   ): Promise<{
     message: string;
     rowsAffected: number;
+    missingFaculties: string[];
+    missingSubjects: string[];
+    totalRowsSkippedDueToMissingEntities: number;
+    skippedRowsDetails: string[];
+    flaskWarnings: string[];
+    flaskErrors: string[];
+    flaskSuccess: boolean;
   }> {
     const batchSize = 500; // Number of allocations to process in a single Prisma createMany operation
     let allocationBatch: AllocationBatchItem[] = [];
     let totalAllocationsAdded = 0; // Counts successfully added allocations (not duplicates)
     let totalRowsSkippedDueToMissingEntities = 0; // Counts rows from Flask output where subject or faculty could not be found
     const skippedRowsDetails: string[] = []; // Array to store details of skipped rows for frontend
+    const missingFaculties = new Set<string>(); // Track unique missing faculty abbreviations
+    const missingSubjects = new Set<string>(); // Track unique missing subject abbreviations
+    const flaskWarnings: string[] = []; // Track Flask warnings
+    const flaskErrors: string[] = []; // Track Flask errors
+    let flaskSuccess = true; // Track overall Flask processing success
 
     // Ensure Flask server URL is configured
     if (!FLASK_SERVER) {
@@ -490,22 +511,37 @@ class FacultyMatrixUploadService {
     formData.append('academicYear', academicYearString);
     formData.append('semesterRun', semesterType); // Pass the validated enum value
 
-    let processedData: ProcessedData;
+    let flaskResponse: FlaskResponse;
     try {
-      processedData = (await this.fetchWithRetry(`${FLASK_SERVER}`, {
+      flaskResponse = (await this.fetchWithRetry(`${FLASK_SERVER}`, {
         method: 'POST',
         headers: {
           ...formData.getHeaders(),
           Accept: 'application/json',
         },
         body: formData,
-      })) as ProcessedData;
+      })) as FlaskResponse;
     } catch (flaskError: any) {
       console.error('Error communicating with Flask server:', flaskError);
       throw new AppError(
         `Failed to get processed data from Flask server: ${flaskError.message || 'Unknown Flask error.'}`,
         flaskError.status || 500
       );
+    }
+
+    // Extract results and status from Flask response
+    const processedData = flaskResponse.results;
+    flaskSuccess = flaskResponse.status.success;
+
+    // Process Flask status information
+    if (flaskResponse.status.errors && flaskResponse.status.errors.length > 0) {
+      flaskResponse.status.errors.forEach((error) => {
+        if (error.toLowerCase().includes('warning')) {
+          flaskWarnings.push(error);
+        } else {
+          flaskErrors.push(error);
+        }
+      });
     }
 
     const processingStartTime = Date.now();
@@ -586,7 +622,8 @@ class FacultyMatrixUploadService {
                   subjectAbbreviation
                 );
               } catch (error: any) {
-                const message = `Skipping subject allocation for Dept '${department.abbreviation}', Semester '${parsedSemesterNum}', Division '${divisionName}': ${error.message || 'Unknown error'}`;
+                missingSubjects.add(subjectAbbreviation); // Track missing subject
+                const message = `Skipping subject allocation for Dept '${department.abbreviation}', Semester '${parsedSemesterNum}', Division '${divisionName}': Subject '${subjectAbbreviation}' not found`;
                 console.warn(message);
                 skippedRowsDetails.push(message);
                 totalRowsSkippedDueToMissingEntities++;
@@ -613,7 +650,8 @@ class FacultyMatrixUploadService {
                   };
                   allocationBatch.push(lectureAllocation);
                 } catch (error: any) {
-                  const message = `Skipping lecture allocation for Subject '${subjectAbbreviation}', Division '${divisionName}': ${error.message || 'Unknown error'}`;
+                  missingFaculties.add(facultyAbbr); // Track missing faculty
+                  const message = `Skipping lecture allocation for Subject '${subjectAbbreviation}', Division '${divisionName}': Faculty '${facultyAbbr}' not found`;
                   console.warn(message);
                   skippedRowsDetails.push(message);
                   totalRowsSkippedDueToMissingEntities++;
@@ -646,7 +684,8 @@ class FacultyMatrixUploadService {
                     };
                     allocationBatch.push(labAllocation);
                   } catch (error: any) {
-                    const message = `Skipping lab allocation for Subject '${subjectAbbreviation}', Division '${divisionName}', Batch '${batch}': ${error.message || 'Unknown error'}`;
+                    missingFaculties.add(facultyAbbr); // Track missing faculty
+                    const message = `Skipping lab allocation for Subject '${subjectAbbreviation}', Division '${divisionName}', Batch '${batch}': Faculty '${facultyAbbr}' not found`;
                     console.warn(message);
                     skippedRowsDetails.push(message);
                     totalRowsSkippedDueToMissingEntities++;
@@ -700,9 +739,29 @@ class FacultyMatrixUploadService {
       'seconds'
     );
 
+    const noob_data = {
+      message: 'Faculty matrix import complete.',
+      rowsAffected: totalAllocationsAdded,
+      missingFaculties: Array.from(missingFaculties),
+      missingSubjects: Array.from(missingSubjects),
+      totalRowsSkippedDueToMissingEntities,
+      skippedRowsDetails,
+      flaskWarnings,
+      flaskErrors,
+      flaskSuccess,
+    };
+    console.log(noob_data);
+
     return {
       message: 'Faculty matrix import complete.',
       rowsAffected: totalAllocationsAdded,
+      missingFaculties: Array.from(missingFaculties),
+      missingSubjects: Array.from(missingSubjects),
+      totalRowsSkippedDueToMissingEntities,
+      skippedRowsDetails,
+      flaskWarnings,
+      flaskErrors,
+      flaskSuccess,
     };
   }
 }

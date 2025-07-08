@@ -4,10 +4,7 @@
  * Encapsulates business logic and interacts with the Prisma client.
  */
 
-import {
-  Prisma,
-  LectureType,
-} from '@prisma/client';
+import { Prisma, LectureType } from '@prisma/client';
 import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
 import AppError from '../../utils/appError';
 
@@ -21,10 +18,17 @@ interface OverallSemesterRatingOutput {
 interface SemesterWithResponsesOutput {
   id: string;
   semesterNumber: number;
+  departmentId: string;
   academicYear: {
     id: string;
     yearString: string;
   };
+  department: {
+    id: string;
+    name: string;
+    abbreviation: string;
+  };
+  responseCount: number;
 }
 
 interface SubjectWiseRatingOutput {
@@ -100,6 +104,97 @@ interface SemesterDivisionResponseOutput {
     yearString: string;
   };
   divisions: SemesterDivisionDetails[];
+}
+
+// NEW: Filter Dictionary Output types
+interface FilterDictionaryOutput {
+  academicYears: Array<{
+    id: string;
+    yearString: string;
+    departments: Array<{
+      id: string;
+      name: string;
+      abbreviation: string;
+      subjects: Array<{
+        id: string;
+        name: string;
+        code: string;
+        type: string;
+      }>;
+      semesters: Array<{
+        id: string;
+        semesterNumber: number;
+        divisions: Array<{
+          id: string;
+          divisionName: string;
+        }>;
+      }>;
+    }>;
+  }>;
+  lectureTypes: Array<{
+    value: LectureType;
+    label: string;
+  }>;
+}
+
+// NEW: Complete Analytics Data Output
+interface CompleteAnalyticsDataOutput {
+  semesters: Array<{
+    id: string;
+    semesterNumber: number;
+    departmentId: string;
+    academicYearId: string;
+    startDate: string | null;
+    endDate: string | null;
+    semesterType: string;
+    department: {
+      id: string;
+      name: string;
+      abbreviation: string;
+    };
+    academicYear: {
+      id: string;
+      yearString: string;
+    };
+    responseCount: number;
+  }>;
+  subjectRatings: Array<{
+    subjectId: string;
+    subjectName: string;
+    subjectAbbreviation: string;
+    lectureType: LectureType;
+    averageRating: number;
+    responseCount: number;
+    semesterNumber: number;
+    academicYearId: string;
+    facultyId: string;
+    facultyName: string;
+  }>;
+  semesterTrends: Array<{
+    subject: string;
+    semester: number;
+    averageRating: number;
+    responseCount: number;
+    academicYearId: string;
+    academicYear: string;
+  }>;
+  feedbackSnapshots: Array<{
+    id: string;
+    semesterNumber: number;
+    subjectName: string;
+    subjectCode: string;
+    subjectId: string;
+    facultyName: string;
+    facultyId: string;
+    academicYearId: string;
+    academicYearString: string;
+    batch: string;
+    divisionName: string;
+    questionType: string;
+    questionCategoryName: string;
+    responseValue: any;
+    createdAt: string;
+  }>;
 }
 
 class AnalyticsService {
@@ -261,23 +356,76 @@ class AnalyticsService {
    * Filters out soft-deleted records.
    * @returns An array of semesters with their academic year.
    */
-  public async getSemestersWithResponses(): Promise<
-    SemesterWithResponsesOutput[]
-  > {
+  public async getSemestersWithResponses(
+    academicYearId?: string,
+    departmentId?: string
+  ): Promise<SemesterWithResponsesOutput[]> {
     try {
+      const whereClause: any = {
+        isDeleted: false, // Filter out soft-deleted semesters
+        academicYear: { isDeleted: false }, // Ensure academic year is not soft-deleted
+        department: { isDeleted: false }, // Ensure department is not soft-deleted
+        allocations: {
+          some: {
+            isDeleted: false, // Ensure subject allocation is not soft-deleted
+            feedbackForms: {
+              some: {
+                isDeleted: false, // Ensure feedback form is not soft-deleted
+                responses: {
+                  some: {
+                    isDeleted: false, // Ensure student response is not soft-deleted
+                  },
+                },
+              },
+            },
+          },
+        },
+      };
+
+      // Apply optional filters
+      if (academicYearId) {
+        whereClause.academicYearId = academicYearId;
+      }
+
+      if (departmentId) {
+        whereClause.departmentId = departmentId;
+      }
+
       const semestersWithResponses = await prisma.semester.findMany({
-        where: {
-          isDeleted: false, // Filter out soft-deleted semesters
-          academicYear: { isDeleted: false }, // Ensure academic year is not soft-deleted
+        where: whereClause,
+        select: {
+          id: true,
+          semesterNumber: true,
+          departmentId: true,
+          academicYear: {
+            select: {
+              id: true,
+              yearString: true,
+            },
+          },
+          department: {
+            select: {
+              id: true,
+              name: true,
+              abbreviation: true,
+            },
+          },
           allocations: {
-            some: {
-              isDeleted: false, // Ensure subject allocation is not soft-deleted
+            where: {
+              isDeleted: false,
+            },
+            select: {
               feedbackForms: {
-                some: {
-                  isDeleted: false, // Ensure feedback form is not soft-deleted
+                where: {
+                  isDeleted: false,
+                },
+                select: {
                   responses: {
-                    some: {
-                      isDeleted: false, // Ensure student response is not soft-deleted
+                    where: {
+                      isDeleted: false,
+                    },
+                    select: {
+                      id: true,
                     },
                   },
                 },
@@ -285,21 +433,38 @@ class AnalyticsService {
             },
           },
         },
-        select: {
-          id: true,
-          semesterNumber: true,
-          academicYear: {
-            select: {
-              id: true,
-              yearString: true,
-            },
-          },
-        },
         orderBy: {
           semesterNumber: 'desc',
         },
       });
-      return semestersWithResponses as SemesterWithResponsesOutput[];
+
+      // Calculate response counts for each semester
+      const result: SemesterWithResponsesOutput[] = semestersWithResponses.map(
+        (semester) => {
+          const responseCount = semester.allocations.reduce(
+            (total, allocation) => {
+              return (
+                total +
+                allocation.feedbackForms.reduce((formTotal, form) => {
+                  return formTotal + form.responses.length;
+                }, 0)
+              );
+            },
+            0
+          );
+
+          return {
+            id: semester.id,
+            semesterNumber: semester.semesterNumber,
+            departmentId: semester.departmentId,
+            academicYear: semester.academicYear,
+            department: semester.department,
+            responseCount,
+          };
+        }
+      );
+
+      return result;
     } catch (error: any) {
       console.error(
         'Error in AnalyticsService.getSemestersWithResponses:',
@@ -310,75 +475,99 @@ class AnalyticsService {
   }
 
   /**
-   * Calculates subject-wise ratings for a given semester, broken down by lecture type.
-   * Filters out soft-deleted records.
-   * @param semesterId - The ID of the semester.
-   * @returns An array of subject-wise ratings.
+   * Gets subject-wise ratings split by lecture and lab types for a specific semester.
+   * Uses feedbackSnapshot for improved performance and correct data aggregation.
+   * @param semesterId - The ID of the semester (used to filter by semesterNumber).
+   * @param academicYearId - Optional academic year ID for additional filtering.
+   * @returns An array of subject ratings grouped by lecture/lab type.
    * @throws AppError if no feedback data is found.
    */
   public async getSubjectWiseLectureLabRating(
-    semesterId: string
+    semesterId: string,
+    academicYearId?: string
   ): Promise<SubjectWiseRatingOutput[]> {
     try {
-      const forms = await prisma.feedbackForm.findMany({
-        where: {
-          isDeleted: false, // Filter out soft-deleted forms
-          subjectAllocation: {
-            isDeleted: false, // Filter out soft-deleted allocations
-            semesterId,
-            semester: { isDeleted: false }, // Ensure semester is not soft-deleted
-            subject: { isDeleted: false }, // Ensure subject is not soft-deleted
-          },
-        },
-        include: {
-          subjectAllocation: {
-            select: {
-              subject: { select: { name: true } },
-              lectureType: true,
-            },
-          },
-          questions: {
-            where: { isDeleted: false }, // Filter out soft-deleted questions
-            include: {
-              responses: {
-                where: { isDeleted: false }, // Filter out soft-deleted responses
-                select: {
-                  value: true,
-                },
-              },
-            },
-          },
+      // First, get the semester number from the semester ID
+      const semester = await prisma.semester.findUnique({
+        where: { id: semesterId, isDeleted: false },
+        select: { semesterNumber: true, academicYearId: true },
+      });
+
+      if (!semester) {
+        throw new AppError('Semester not found.', 404);
+      }
+
+      const whereClause: Prisma.FeedbackSnapshotWhereInput = {
+        isDeleted: false,
+        formDeleted: false,
+        semesterNumber: semester.semesterNumber,
+        ...(academicYearId && { academicYearId }),
+        // If no academic year is specified, use the semester's academic year
+        ...(!academicYearId && { academicYearId: semester.academicYearId }),
+      };
+
+      const snapshots = await prisma.feedbackSnapshot.findMany({
+        where: whereClause,
+        select: {
+          subjectName: true,
+          questionCategoryName: true,
+          batch: true,
+          responseValue: true,
         },
       });
 
-      if (!forms.length) {
+      if (!snapshots.length) {
         throw new AppError(
           'No feedback data found for the given semester.',
           404
         );
       }
 
-      const subjectRatings: SubjectWiseRatingOutput[] = forms.map((form) => {
-        const responses = form.questions.flatMap((q) => q.responses);
-        const numericResponses = responses
-          .map((r) => parseFloat(String(r.value))) // Parse value to number
-          .filter((value) => !isNaN(value)); // Filter out NaN values
+      // Group by subject and lecture type
+      const groupedData = this.groupBy(snapshots, (snapshot) => {
+        // Determine lecture type based on batch or questionCategoryName
+        let lectureType: LectureType;
+        if (
+          snapshot.questionCategoryName?.toLowerCase().includes('laboratory') ||
+          snapshot.questionCategoryName?.toLowerCase().includes('lab')
+        ) {
+          lectureType = LectureType.LAB;
+        } else if (snapshot.batch && snapshot.batch.toLowerCase() !== 'none') {
+          lectureType = LectureType.LAB;
+        } else {
+          lectureType = LectureType.LECTURE;
+        }
+
+        return `${snapshot.subjectName}|${lectureType}`;
+      });
+
+      const subjectRatings: SubjectWiseRatingOutput[] = Object.entries(
+        groupedData
+      ).map(([key, snapshots]) => {
+        const [subjectName, lectureType] = key.split('|');
+
+        // Parse numeric responses
+        const numericResponses = snapshots
+          .map((snapshot) =>
+            this.parseResponseValueToScore(snapshot.responseValue)
+          )
+          .filter((score): score is number => score !== null);
 
         const avgRating =
           numericResponses.length > 0
-            ? numericResponses.reduce((acc, r) => acc + r, 0) /
+            ? numericResponses.reduce((acc, score) => acc + score, 0) /
               numericResponses.length
             : 0;
 
         return {
-          subject: form.subjectAllocation.subject.name,
-          lectureType: form.subjectAllocation.lectureType,
+          subject: subjectName,
+          lectureType: lectureType as LectureType,
           averageRating: Number(avgRating.toFixed(2)),
-          responseCount: responses.length,
+          responseCount: snapshots.length,
         };
       });
 
-      return subjectRatings;
+      return subjectRatings.sort((a, b) => a.subject.localeCompare(b.subject));
     } catch (error: any) {
       console.error(
         'Error in AnalyticsService.getSubjectWiseLectureLabRating:',
@@ -474,90 +663,86 @@ class AnalyticsService {
   }
 
   /**
-   * Provides trend analysis of average ratings across semesters, optionally filtered by subject.
-   * Filters out soft-deleted records.
-   * @param subjectId - Optional ID of the subject to filter by.
-   * @returns An array of trend data.
+   * Analyzes performance trends across semesters for subjects.
+   * Uses feedbackSnapshot for improved performance and correct data aggregation.
+   * @param subjectId - Optional subject ID to filter trends for a specific subject.
+   * @param academicYearId - Optional academic year ID to limit trends to a specific year.
+   * @returns An array of trend data grouped by semester and subject.
    * @throws AppError if no trend data is available.
    */
   public async getSemesterTrendAnalysis(
-    subjectId?: string
+    subjectId?: string,
+    academicYearId?: string
   ): Promise<SemesterTrendAnalysisOutput[]> {
     try {
-      const whereClause: Prisma.FeedbackFormWhereInput = {
-        isDeleted: false, // Filter out soft-deleted forms
-        subjectAllocation: {
-          isDeleted: false, // Ensure subject allocation is not soft-deleted
-          semester: { isDeleted: false }, // Ensure semester is not soft-deleted
-          subject: {
-            isDeleted: false, // Ensure subject is not soft-deleted
-            ...(subjectId && { id: subjectId }), // Apply subjectId filter if present
-          },
-        },
+      const whereClause: Prisma.FeedbackSnapshotWhereInput = {
+        isDeleted: false,
+        formDeleted: false,
+        ...(subjectId && { subjectId }),
+        ...(academicYearId && { academicYearId }),
       };
 
-      const trends = await prisma.feedbackForm.findMany({
+      const snapshots = await prisma.feedbackSnapshot.findMany({
         where: whereClause,
-        include: {
-          subjectAllocation: {
-            select: {
-              semester: {
-                select: {
-                  semesterNumber: true,
-                  academicYear: { select: { yearString: true } },
-                },
-              },
-              subject: { select: { name: true } },
-            },
-          },
-          questions: {
-            where: { isDeleted: false }, // Filter out soft-deleted questions
-            include: {
-              responses: {
-                where: { isDeleted: false }, // Filter out soft-deleted responses
-                select: {
-                  value: true,
-                },
-              },
-            },
-          },
+        select: {
+          semesterNumber: true,
+          subjectName: true,
+          responseValue: true,
+          academicYearString: true,
         },
-        orderBy: {
-          createdAt: 'asc',
-        },
+        orderBy: [
+          { academicYearString: 'asc' },
+          { semesterNumber: 'asc' },
+          { subjectName: 'asc' },
+        ],
       });
 
-      if (!trends.length) {
+      if (!snapshots.length) {
         throw new AppError(
           'No trend data available for the given criteria.',
           404
         );
       }
 
-      const enrichedTrends: SemesterTrendAnalysisOutput[] = trends.map(
-        (form) => {
-          const responses = form.questions.flatMap((q) => q.responses);
-          const numericResponses = responses
-            .map((r) => parseFloat(String(r.value))) // Parse value to number
-            .filter((value) => !isNaN(value)); // Filter out NaN values
-
-          const avgRating =
-            numericResponses.length > 0
-              ? numericResponses.reduce((acc, r) => acc + r, 0) /
-                numericResponses.length
-              : 0;
-
-          return {
-            semester: form.subjectAllocation.semester.semesterNumber,
-            subject: form.subjectAllocation.subject.name,
-            averageRating: Number(avgRating.toFixed(2)),
-            responseCount: responses.length,
-            // academicYear: form.subjectAllocation.semester.academicYear.yearString, // Uncomment if needed
-          };
-        }
+      // Group by semester and subject
+      const groupedData = this.groupBy(
+        snapshots,
+        (snapshot) => `${snapshot.semesterNumber}|${snapshot.subjectName}`
       );
 
-      return enrichedTrends;
+      const trends: SemesterTrendAnalysisOutput[] = Object.entries(
+        groupedData
+      ).map(([key, snapshots]) => {
+        const [semesterNumber, subjectName] = key.split('|');
+
+        // Parse numeric responses
+        const numericResponses = snapshots
+          .map((snapshot) =>
+            this.parseResponseValueToScore(snapshot.responseValue)
+          )
+          .filter((score): score is number => score !== null);
+
+        const avgRating =
+          numericResponses.length > 0
+            ? numericResponses.reduce((acc, score) => acc + score, 0) /
+              numericResponses.length
+            : 0;
+
+        return {
+          semester: parseInt(semesterNumber),
+          subject: subjectName,
+          averageRating: Number(avgRating.toFixed(2)),
+          responseCount: snapshots.length,
+        };
+      });
+
+      // Sort by semester then by subject for consistent ordering
+      return trends.sort((a, b) => {
+        if (a.semester !== b.semester) {
+          return a.semester - b.semester;
+        }
+        return a.subject.localeCompare(b.subject);
+      });
     } catch (error: any) {
       console.error(
         'Error in AnalyticsService.getSemesterTrendAnalysis:',
@@ -1171,6 +1356,475 @@ class AnalyticsService {
         error
       );
       throw new AppError('Error fetching semester divisions data.', 500);
+    }
+  }
+
+  /**
+   * Gets the filter dictionary with Academic Years -> Departments -> Subjects hierarchy
+   * @returns Hierarchical filter options for frontend dropdowns
+   */
+  public async getFilterDictionary(): Promise<FilterDictionaryOutput> {
+    try {
+      const academicYears = await prisma.academicYear.findMany({
+        where: {
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+          yearString: true,
+        },
+        orderBy: {
+          yearString: 'desc',
+        },
+      });
+
+      const filterData: FilterDictionaryOutput = {
+        academicYears: [],
+        lectureTypes: [
+          { value: LectureType.LECTURE, label: 'Lecture' },
+          { value: LectureType.LAB, label: 'Laboratory' },
+        ],
+      };
+
+      for (const year of academicYears) {
+        const departments = await prisma.department.findMany({
+          where: {
+            isDeleted: false,
+            semesters: {
+              some: {
+                academicYearId: year.id,
+                isDeleted: false,
+              },
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            abbreviation: true,
+          },
+          orderBy: {
+            name: 'asc',
+          },
+        });
+
+        const departmentsWithSubjectsAndSemesters = [];
+
+        for (const dept of departments) {
+          const subjects = await prisma.subject.findMany({
+            where: {
+              isDeleted: false,
+              semester: {
+                academicYearId: year.id,
+                departmentId: dept.id,
+                isDeleted: false,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              subjectCode: true,
+              type: true,
+            },
+            orderBy: {
+              subjectCode: 'asc',
+            },
+          });
+
+          const semesters = await prisma.semester.findMany({
+            where: {
+              academicYearId: year.id,
+              departmentId: dept.id,
+              isDeleted: false,
+            },
+            select: {
+              id: true,
+              semesterNumber: true,
+              divisions: {
+                where: {
+                  isDeleted: false,
+                },
+                select: {
+                  id: true,
+                  divisionName: true,
+                },
+                orderBy: {
+                  divisionName: 'asc',
+                },
+              },
+            },
+            orderBy: {
+              semesterNumber: 'asc',
+            },
+          });
+
+          departmentsWithSubjectsAndSemesters.push({
+            ...dept,
+            subjects: subjects.map((subject) => ({
+              id: subject.id,
+              name: subject.name,
+              code: subject.subjectCode,
+              type: subject.type.toString(),
+            })),
+            semesters: semesters.map((semester) => ({
+              id: semester.id,
+              semesterNumber: semester.semesterNumber,
+              divisions: semester.divisions,
+            })),
+          });
+        }
+
+        filterData.academicYears.push({
+          ...year,
+          departments: departmentsWithSubjectsAndSemesters,
+        });
+      }
+
+      return filterData;
+    } catch (error: any) {
+      console.error('Error in AnalyticsService.getFilterDictionary:', error);
+      throw new AppError('Failed to retrieve filter dictionary.', 500);
+    }
+  }
+
+  /**
+   * Gets complete analytics data based on filters
+   * @param academicYearId - Optional academic year filter
+   * @param departmentId - Optional department filter
+   * @param subjectId - Optional subject filter
+   * @param semesterId - Optional semester filter
+   * @param divisionId - Optional division filter
+   * @param lectureType - Optional lecture type filter (LECTURE or LAB)
+   * @param includeDeleted - Whether to include soft-deleted records
+   * @returns Complete analytics data including semesters, subject ratings, and feedback snapshots
+   */
+  public async getCompleteAnalyticsData(
+    academicYearId?: string,
+    departmentId?: string,
+    subjectId?: string,
+    semesterId?: string,
+    divisionId?: string,
+    lectureType?: LectureType,
+    includeDeleted = false
+  ): Promise<CompleteAnalyticsDataOutput> {
+    try {
+      // Build where clause for semesters
+      const semesterWhereClause: Prisma.SemesterWhereInput = {
+        isDeleted: includeDeleted ? undefined : false,
+      };
+
+      if (academicYearId) {
+        semesterWhereClause.academicYearId = academicYearId;
+      }
+
+      if (departmentId) {
+        semesterWhereClause.departmentId = departmentId;
+      }
+
+      if (semesterId) {
+        semesterWhereClause.id = semesterId;
+      }
+
+      // Get filtered semesters with response counts
+      const semesters = await prisma.semester.findMany({
+        where: semesterWhereClause,
+        include: {
+          academicYear: {
+            select: {
+              id: true,
+              yearString: true,
+            },
+          },
+          department: {
+            select: {
+              id: true,
+              name: true,
+              abbreviation: true,
+            },
+          },
+          allocations: {
+            where: {
+              isDeleted: false,
+            },
+            select: {
+              feedbackForms: {
+                where: {
+                  isDeleted: false,
+                },
+                select: {
+                  responses: {
+                    where: {
+                      isDeleted: false,
+                    },
+                    select: {
+                      id: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: [
+          { academicYear: { yearString: 'desc' } },
+          { semesterNumber: 'asc' },
+        ],
+      });
+
+      // Format semesters data with calculated response counts
+      const formattedSemesters = semesters.map((semester) => {
+        const responseCount = semester.allocations.reduce(
+          (total, allocation) => {
+            return (
+              total +
+              allocation.feedbackForms.reduce((formTotal, form) => {
+                return formTotal + form.responses.length;
+              }, 0)
+            );
+          },
+          0
+        );
+
+        return {
+          id: semester.id,
+          semesterNumber: semester.semesterNumber,
+          departmentId: semester.departmentId,
+          academicYearId: semester.academicYearId,
+          startDate: semester.startDate?.toISOString() || null,
+          endDate: semester.endDate?.toISOString() || null,
+          semesterType: semester.semesterType.toString(),
+          department: semester.department,
+          academicYear: semester.academicYear,
+          responseCount,
+        };
+      });
+
+      // Build where clause for feedback snapshots
+      const snapshotWhereClause: Prisma.FeedbackSnapshotWhereInput = {
+        isDeleted: includeDeleted ? undefined : false,
+        formIsDeleted: includeDeleted ? undefined : false, // Updated field name
+      };
+
+      if (academicYearId) {
+        snapshotWhereClause.academicYearId = academicYearId;
+      }
+
+      if (departmentId) {
+        snapshotWhereClause.departmentId = departmentId; // Now we have direct departmentId field
+      }
+
+      if (subjectId) {
+        snapshotWhereClause.subjectId = subjectId;
+      }
+
+      if (semesterId) {
+        snapshotWhereClause.semesterId = semesterId;
+      }
+
+      if (divisionId) {
+        snapshotWhereClause.divisionId = divisionId;
+      }
+
+      if (semesterId) {
+        snapshotWhereClause.semesterId = semesterId;
+      }
+
+      if (divisionId) {
+        snapshotWhereClause.divisionId = divisionId;
+      }
+
+      // Note: lectureType filtering is done after retrieving data since it's derived from questionCategoryName/batch
+
+      // Get feedback snapshots with complete data using new field names
+      let feedbackSnapshots = await prisma.feedbackSnapshot.findMany({
+        where: snapshotWhereClause,
+        select: {
+          id: true,
+          // Academic Year
+          academicYearId: true,
+          academicYearString: true,
+          // Department
+          departmentId: true,
+          departmentName: true,
+          departmentAbbreviation: true,
+          // Semester
+          semesterId: true,
+          semesterNumber: true,
+          // Division
+          divisionId: true,
+          divisionName: true,
+          // Subject
+          subjectId: true,
+          subjectName: true,
+          subjectAbbreviation: true,
+          subjectCode: true,
+          // Faculty
+          facultyId: true,
+          facultyName: true,
+          facultyAbbreviation: true,
+          // Student
+          studentId: true,
+          studentEnrollmentNumber: true,
+          // Form
+          formId: true,
+          formStatus: true,
+          // Question
+          questionId: true,
+          questionType: true,
+          questionCategoryId: true,
+          questionCategoryName: true,
+          questionBatch: true,
+          // Response
+          responseValue: true,
+          batch: true,
+          submittedAt: true,
+          createdAt: true,
+        },
+        orderBy: [{ semesterNumber: 'asc' }, { subjectName: 'asc' }],
+      });
+
+      // Filter by lecture type if specified
+      if (lectureType) {
+        feedbackSnapshots = feedbackSnapshots.filter((snapshot) => {
+          // Determine lecture type based on batch or questionCategoryName
+          let snapshotLectureType: LectureType;
+          if (
+            snapshot.questionCategoryName
+              ?.toLowerCase()
+              .includes('laboratory') ||
+            snapshot.questionCategoryName?.toLowerCase().includes('lab')
+          ) {
+            snapshotLectureType = LectureType.LAB;
+          } else if (
+            snapshot.questionBatch &&
+            snapshot.questionBatch.toLowerCase() !== 'none'
+          ) {
+            snapshotLectureType = LectureType.LAB;
+          } else {
+            snapshotLectureType = LectureType.LECTURE;
+          }
+
+          return snapshotLectureType === lectureType;
+        });
+      }
+
+      // Group snapshots by subject and lecture type for aggregation
+      const groupedSnapshots = this.groupBy(feedbackSnapshots, (snapshot) => {
+        // Determine lecture type based on batch or questionCategoryName
+        let lectureType: LectureType;
+        if (
+          snapshot.questionCategoryName?.toLowerCase().includes('laboratory') ||
+          snapshot.questionCategoryName?.toLowerCase().includes('lab')
+        ) {
+          lectureType = LectureType.LAB;
+        } else {
+          lectureType = LectureType.LECTURE;
+        }
+
+        return `${snapshot.subjectName}|${lectureType}|${snapshot.semesterNumber}`;
+      });
+
+      // Calculate subject ratings from grouped snapshots
+      const subjectRatings = Object.entries(groupedSnapshots).map(
+        ([key, snapshots]) => {
+          const [subjectName, lectureType, semesterNumberStr] = key.split('|');
+          const semesterNumber = parseInt(semesterNumberStr);
+
+          // Parse numeric responses
+          const numericResponses = snapshots
+            .map((snapshot) =>
+              this.parseResponseValueToScore(snapshot.responseValue)
+            )
+            .filter((score): score is number => score !== null);
+
+          const avgRating =
+            numericResponses.length > 0
+              ? numericResponses.reduce((acc, score) => acc + score, 0) /
+                numericResponses.length
+              : 0;
+
+          // Get additional info from first snapshot in group
+          const firstSnapshot = snapshots[0];
+
+          return {
+            subjectId: firstSnapshot.subjectId,
+            subjectName: subjectName,
+            subjectAbbreviation: firstSnapshot.subjectAbbreviation,
+            lectureType: lectureType as LectureType,
+            averageRating: Number(avgRating.toFixed(2)),
+            responseCount: snapshots.length,
+            semesterNumber: semesterNumber,
+            academicYearId: firstSnapshot.academicYearId,
+            facultyId: firstSnapshot.facultyId,
+            facultyName: firstSnapshot.facultyName,
+          };
+        }
+      );
+
+      // Group snapshots for semester trends (by subject and semester)
+      const semesterTrendsGrouped = this.groupBy(
+        feedbackSnapshots,
+        (snapshot) => `${snapshot.subjectName}|${snapshot.semesterNumber}`
+      );
+
+      const semesterTrends = Object.entries(semesterTrendsGrouped).map(
+        ([key, snapshots]) => {
+          const [subjectName, semesterNumberStr] = key.split('|');
+          const semesterNumber = parseInt(semesterNumberStr);
+
+          // Parse numeric responses
+          const numericResponses = snapshots
+            .map((snapshot) =>
+              this.parseResponseValueToScore(snapshot.responseValue)
+            )
+            .filter((score): score is number => score !== null);
+
+          const avgRating =
+            numericResponses.length > 0
+              ? numericResponses.reduce((acc, score) => acc + score, 0) /
+                numericResponses.length
+              : 0;
+
+          const firstSnapshot = snapshots[0];
+
+          return {
+            subject: subjectName,
+            semester: semesterNumber,
+            averageRating: Number(avgRating.toFixed(2)),
+            responseCount: snapshots.length,
+            academicYearId: firstSnapshot.academicYearId,
+            academicYear: firstSnapshot.academicYearString,
+          };
+        }
+      );
+
+      return {
+        semesters: formattedSemesters,
+        subjectRatings,
+        semesterTrends,
+        feedbackSnapshots: feedbackSnapshots.map((snapshot) => ({
+          id: snapshot.id,
+          semesterNumber: snapshot.semesterNumber,
+          subjectName: snapshot.subjectName,
+          subjectCode: snapshot.subjectCode,
+          subjectId: snapshot.subjectId,
+          facultyName: snapshot.facultyName,
+          facultyId: snapshot.facultyId,
+          academicYearId: snapshot.academicYearId,
+          academicYearString: snapshot.academicYearString,
+          batch: snapshot.batch,
+          divisionName: snapshot.divisionName,
+          questionType: snapshot.questionType,
+          questionCategoryName: snapshot.questionCategoryName,
+          responseValue: snapshot.responseValue,
+          createdAt: snapshot.createdAt.toISOString(),
+        })),
+      };
+    } catch (error: any) {
+      console.error(
+        'Error in AnalyticsService.getCompleteAnalyticsData:',
+        error
+      );
+      throw new AppError('Failed to retrieve complete analytics data.', 500);
     }
   }
 }

@@ -41,7 +41,11 @@ class StudentResponseService {
         student: {
           include: {
             academicYear: true, // Include academic year details for the student
-            semester: true, // Include semester details for the student
+            semester: {
+              include: {
+                department: true, // Include department details for the semester
+              },
+            },
             division: true, // Include division details for the student
           },
         },
@@ -148,43 +152,75 @@ class StudentResponseService {
           },
         });
 
-        // Create the denormalized FeedbackSnapshot record.
+        // Create the denormalized FeedbackSnapshot record with all enhanced fields
         await tx.feedbackSnapshot.create({
           data: {
             originalStudentResponseId: studentResponse.id, // Link to the original response
+
             // Student Information
             studentId: formAccess.student.id,
             studentEnrollmentNumber: formAccess.student.enrollmentNumber,
             studentName: formAccess.student.name,
             studentEmail: formAccess.student.email,
+
             // Form Information
             formId: formAccess.form.id,
             formName: formAccess.form.title,
+            formStatus: formAccess.form.status,
+            formIsDeleted: formAccess.form.isDeleted,
+
             // Question Information
             questionId: question.id,
             questionText: question.text,
             questionType: question.type,
-            questionCategoryText: question.category.categoryName,
+            questionCategoryId: question.category.id,
+            questionCategoryName: question.category.categoryName,
+            questionBatch: question.batch,
+            questionIsDeleted: question.isDeleted,
+
             // Faculty Information (from FeedbackQuestion's relation)
             facultyId: question.faculty.id,
             facultyName: question.faculty.name,
             facultyEmail: question.faculty.email,
+            facultyAbbreviation: question.faculty.abbreviation || '',
+
             // Subject Information (from FeedbackQuestion's relation)
             subjectId: question.subject.id,
             subjectName: question.subject.name,
+            subjectAbbreviation: question.subject.abbreviation,
             subjectCode: question.subject.subjectCode,
-            // Academic Context (from Student's relations)
+            subjectIsDeleted: question.subject.isDeleted,
+
+            // Academic Year Information
             academicYearId: formAccess.student.academicYear.id,
             academicYearString: formAccess.student.academicYear.yearString,
+            academicYearIsDeleted: formAccess.student.academicYear.isDeleted,
+
+            // Department Information (from semester relation)
+            departmentId: formAccess.student.semester.departmentId,
+            departmentName: formAccess.student.semester.department?.name || '',
+            departmentAbbreviation:
+              formAccess.student.semester.department?.abbreviation || '',
+            departmentIsDeleted:
+              formAccess.student.semester.department?.isDeleted || false,
+
+            // Semester Information
+            semesterId: formAccess.student.semester.id,
             semesterNumber: formAccess.student.semester.semesterNumber,
+            semesterIsDeleted: formAccess.student.semester.isDeleted,
+
+            // Division Information
+            divisionId: formAccess.student.division.id,
             divisionName: formAccess.student.division.divisionName,
-            batch: question.batch, // Using batch from FeedbackQuestion
+            divisionIsDeleted: formAccess.student.division.isDeleted,
+
             // Response Data
             responseValue: JSON.stringify(value), // Store the actual response value
+            batch: question.batch, // Using batch from FeedbackQuestion
             submittedAt: studentResponse.submittedAt, // Use the timestamp from the created StudentResponse
-            formDeleted: formAccess.form.isDeleted, // Reflect form's soft-delete status at submission time
-            // Removed 'questionDeleted' as it's not in the FeedbackSnapshot model
-            // questionDeleted: question.isDeleted,
+
+            // Metadata
+            isDeleted: false, // New snapshots are never deleted
           },
         });
 

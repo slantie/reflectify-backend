@@ -74,10 +74,34 @@ export const uploadFacultyMatrix = asyncHandler(
       deptAbbreviation
     );
 
+    // Determine the overall status based on missing entities and Flask status
+    const hasBackendErrors =
+      result.missingFaculties.length > 0 || result.missingSubjects.length > 0;
+    const hasFlaskErrors = result.flaskErrors.length > 0;
+    const hasFlaskWarnings = result.flaskWarnings.length > 0;
+    const hasAnyIssues = hasBackendErrors || hasFlaskErrors || hasFlaskWarnings;
+
+    let statusMessage = result.message;
+    if (!result.flaskSuccess) {
+      statusMessage =
+        'Faculty matrix processing completed with Flask errors. Please review the issues.';
+    } else if (hasAnyIssues) {
+      statusMessage =
+        'Faculty matrix processing completed with some warnings. Please review the issues.';
+    }
+
     res.status(200).json({
       status: 'success',
-      message: result.message,
+      message: statusMessage,
       rowsAffected: result.rowsAffected,
+      totalRowsSkippedDueToMissingEntities:
+        result.totalRowsSkippedDueToMissingEntities,
+      missingFaculties: result.missingFaculties,
+      missingSubjects: result.missingSubjects,
+      skippedRowsDetails: result.skippedRowsDetails,
+      flaskWarnings: result.flaskWarnings,
+      flaskErrors: result.flaskErrors,
+      flaskSuccess: result.flaskSuccess,
     });
   }
 );

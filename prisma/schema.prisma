@@ -455,49 +455,92 @@ model FeedbackSnapshot {
     id                        String  @id @default(uuid())
     originalStudentResponseId String? @map("original_student_response_id")
 
+    // 1. Academic Year Fields
+    academicYearId        String  @map("academic_year_id")
+    academicYearString    String  @map("academic_year_string")
+    academicYearIsDeleted Boolean @default(false) @map("academic_year_is_deleted")
+
+    // 2. Department Fields
+    departmentId           String  @map("department_id")
+    departmentName         String  @map("department_name")
+    departmentAbbreviation String  @map("department_abbreviation")
+    departmentIsDeleted    Boolean @default(false) @map("department_is_deleted")
+
+    // 3. Semester Fields
+    semesterId        String  @map("semester_id")
+    semesterNumber    Int     @map("semester_number")
+    semesterIsDeleted Boolean @default(false) @map("semester_is_deleted")
+
+    // 4. Division Fields
+    divisionId        String  @map("division_id")
+    divisionName      String  @map("division_name")
+    divisionIsDeleted Boolean @default(false) @map("division_is_deleted")
+
+    // 5. Subject Fields
+    subjectId           String  @map("subject_id")
+    subjectName         String  @map("subject_name")
+    subjectAbbreviation String  @map("subject_abbreviation")
+    subjectCode         String  @map("subject_code")
+    subjectIsDeleted    Boolean @default(false) @map("subject_is_deleted")
+
+    // 6. Faculty Fields
+    facultyId           String @map("faculty_id")
+    facultyName         String @map("faculty_name")
+    facultyAbbreviation String @map("faculty_abbreviation")
+    facultyEmail        String @map("faculty_email")
+
+    // 7. Student Fields
     studentId               String @map("student_id")
     studentEnrollmentNumber String @map("student_enrollment_number")
     studentName             String @map("student_name")
     studentEmail            String @map("student_email")
 
-    formId   String @map("form_id")
-    formName String @map("form_name")
+    // 8. Feedback Form Fields
+    formId        String  @map("form_id")
+    formName      String  @map("form_name")
+    formStatus    String  @map("form_status") // DRAFT, ACTIVE, CLOSED
+    formIsDeleted Boolean @default(false) @map("form_is_deleted")
 
-    questionId           String @map("question_id")
-    questionText         String @map("question_text")
-    questionType         String @map("question_type")
-    questionCategoryText String @map("question_category_text")
+    // 9. Feedback Question Fields
+    questionId           String  @map("question_id")
+    questionText         String  @map("question_text")
+    questionType         String  @map("question_type")
+    questionCategoryId   String  @map("question_category_id")
+    questionCategoryName String  @map("question_category_name")
+    questionBatch        String  @map("question_batch")
+    questionIsDeleted    Boolean @default(false) @map("question_is_deleted")
 
-    facultyId    String @map("faculty_id")
-    facultyName  String @map("faculty_name")
-    facultyEmail String @map("faculty_email")
+    // 10. Student Response Fields
+    responseValue Json @map("response_value")
 
-    subjectId   String @map("subject_id")
-    subjectName String @map("subject_name")
-    subjectCode String @map("subject_code")
+    // Additional Context Fields
+    batch       String   @map("batch")
+    submittedAt DateTime @map("submitted_at")
 
-    academicYearId     String @map("academic_year_id")
-    academicYearString String @map("academic_year_string")
-    semesterNumber     Int    @map("semester_number")
-    divisionName       String @map("division_name")
-    batch              String @map("batch")
-
-    responseValue Json     @map("response_value")
-    submittedAt   DateTime @map("submitted_at")
-
-    formDeleted Boolean @default(false) @map("form_deleted")
-    isDeleted   Boolean @default(false) @map("is_deleted") // NEW: isDeleted for the snapshot itself
+    // System Fields
+    formDeleted Boolean @default(false) @map("form_deleted") // Legacy field - keeping for compatibility
+    isDeleted   Boolean @default(false) @map("is_deleted")
 
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 
+    // Indexes for efficient querying
+    @@index([academicYearId])
+    @@index([departmentId])
+    @@index([semesterId])
+    @@index([divisionId])
+    @@index([subjectId])
+    @@index([facultyId])
     @@index([studentId])
     @@index([formId])
     @@index([questionId])
-    @@index([facultyId])
-    @@index([subjectId])
-    @@index([academicYearId])
+    @@index([questionCategoryId])
     @@index([submittedAt])
+    @@index([academicYearId, departmentId])
+    @@index([departmentId, semesterId])
+    @@index([semesterId, divisionId])
+    @@index([subjectId, facultyId])
+    @@index([formId, questionId])
     @@map("feedback_snapshots")
 }
 

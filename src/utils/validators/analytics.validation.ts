@@ -16,9 +16,30 @@ export const getOverallSemesterRatingQuerySchema = z.object({
   batch: z.string().min(1, 'Batch cannot be empty.').optional(),
 });
 
+// Schema for query parameters to filter semesters with responses
+export const getSemestersWithResponsesQuerySchema = z.object({
+  academicYearId: z
+    .string()
+    .uuid('Invalid academic year ID format.')
+    .optional(),
+  departmentId: z.string().uuid('Invalid department ID format.').optional(),
+});
+
+// Schema for query parameters to filter subject-wise lecture lab rating
+export const getSubjectWiseLectureLabRatingQuerySchema = z.object({
+  academicYearId: z
+    .string()
+    .uuid('Invalid academic year ID format.')
+    .optional(),
+});
+
 // Schema for query parameters to filter semester trend analysis
 export const getSemesterTrendAnalysisQuerySchema = z.object({
   subjectId: z.string().uuid('Invalid subject ID format.').optional(),
+  academicYearId: z
+    .string()
+    .uuid('Invalid academic year ID format.')
+    .optional(),
 });
 
 // NEW: Schema for single faculty performance (params)

@@ -18,6 +18,9 @@ class DatabaseService {
       await prisma.$transaction([
         // Dependent on multiple entities (form, question, student)
         prisma.studentResponse.deleteMany(),
+        prisma.feedbackSnapshot.deleteMany(), // Dependent on studentResponse
+        // Dependent on form, student - MUST be deleted before feedbackForm
+        prisma.formAccess.deleteMany(),
         // Dependent on form, category, faculty, subject
         prisma.feedbackQuestion.deleteMany(),
         // Dependent on division, subjectAllocation
@@ -28,6 +31,7 @@ class DatabaseService {
         prisma.subjectAllocation.deleteMany(),
         // Dependent on department, semester, division, academicYear
         prisma.student.deleteMany(),
+        prisma.promotionHistory.deleteMany(), // Dependent on student, semester
         // Dependent on department
         prisma.faculty.deleteMany(),
         // Dependent on department, semester
@@ -44,7 +48,8 @@ class DatabaseService {
         prisma.customReport.deleteMany(), // Independent or dependent on other data
         prisma.questionCategory.deleteMany(), // Independent or dependent on question
         prisma.academicYear.deleteMany(), // Independent
-        prisma.formAccess.deleteMany(), // Dependent on form, student
+        prisma.admin.deleteMany(), // Independent
+        prisma.oTP.deleteMany(), // Independent
       ]);
 
       console.log('🗑️ Database cleaned successfully');

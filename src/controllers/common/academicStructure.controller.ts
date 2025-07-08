@@ -18,10 +18,15 @@ import asyncHandler from '../../utils/asyncHandler';
  * @access Private (Admin/Authenticated User)
  */
 export const getAcademicStructure = asyncHandler(
-  async (_req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
+    const { academicYearId } = req.query;
+
     // 1. Delegate to service layer
-    const academicStructure =
-      await academicStructureService.getAcademicStructure();
+    const academicStructure = academicYearId
+      ? await academicStructureService.getAcademicStructureByYear(
+          academicYearId as string
+        )
+      : await academicStructureService.getAcademicStructure();
 
     // 2. Send success response
     res.status(200).json({

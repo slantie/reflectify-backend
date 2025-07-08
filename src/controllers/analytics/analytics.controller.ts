@@ -13,6 +13,8 @@ import { ZodError } from 'zod';
 import {
   idParamSchema,
   getOverallSemesterRatingQuerySchema,
+  getSemestersWithResponsesQuerySchema,
+  getSubjectWiseLectureLabRatingQuerySchema,
   getSemesterTrendAnalysisQuerySchema,
   facultyPerformanceParamsSchema,
   allFacultyPerformanceParamsSchema,
@@ -56,29 +58,46 @@ export const getOverallSemesterRating = asyncHandler(
 );
 
 /**
- * @description Retrieves a list of semesters that have associated feedback responses.
+ * @description Retrieves a list of semesters that have associated feedback responses, with optional filtering.
  * @route GET /api/v1/analytics/semesters-with-responses
- * @param {Request} req - Express Request object
+ * @param {Request} req - Express Request object (expects optional academicYearId, departmentId in query)
  * @param {Response} res - Express Response object
  * @access Private (Admin/Faculty)
  */
 export const getSemestersWithResponses = asyncHandler(
-  async (_req: Request, res: Response) => {
-    const semesters = await analyticsService.getSemestersWithResponses();
-    res.status(200).json({
-      status: 'success',
-      results: semesters.length,
-      data: {
-        semesters: semesters,
-      },
-    });
+  async (req: Request, res: Response) => {
+    try {
+      const { academicYearId, departmentId } =
+        getSemestersWithResponsesQuerySchema.parse(req.query);
+
+      const semesters = await analyticsService.getSemestersWithResponses(
+        academicYearId,
+        departmentId
+      );
+
+      res.status(200).json({
+        status: 'success',
+        results: semesters.length,
+        data: {
+          semesters: semesters,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new AppError(
+          `Invalid query parameters: ${error.errors.map((e) => e.message).join(', ')}`,
+          400
+        );
+      }
+      throw error;
+    }
   }
 );
 
 /**
- * @description Calculates subject-wise ratings for a given semester, broken down by lecture type.
+ * @description Gets subject-wise ratings split by lecture and lab types for a specific semester.
  * @route GET /api/v1/analytics/semesters/:id/subject-wise-rating
- * @param {Request} req - Express Request object (expects semesterId in params)
+ * @param {Request} req - Express Request object (expects semesterId in params, optional academicYearId in query)
  * @param {Response} res - Express Response object
  * @access Private (Admin/Faculty)
  */
@@ -86,8 +105,12 @@ export const getSubjectWiseLectureLabRating = asyncHandler(
   async (req: Request, res: Response) => {
     try {
       const { id: semesterId } = idParamSchema.parse(req.params);
-      const ratings =
-        await analyticsService.getSubjectWiseLectureLabRating(semesterId);
+      const { academicYearId } =
+        getSubjectWiseLectureLabRatingQuerySchema.parse(req.query);
+      const ratings = await analyticsService.getSubjectWiseLectureLabRating(
+        semesterId,
+        academicYearId
+      );
       res.status(200).json({
         status: 'success',
         results: ratings.length,
@@ -98,7 +121,7 @@ export const getSubjectWiseLectureLabRating = asyncHandler(
     } catch (error) {
       if (error instanceof ZodError) {
         throw new AppError(
-          `Invalid semester ID: ${error.errors.map((e) => e.message).join(', ')}`,
+          `Invalid parameters: ${error.errors.map((e) => e.message).join(', ')}`,
           400
         );
       }
@@ -140,19 +163,21 @@ export const getHighImpactFeedbackAreas = asyncHandler(
 );
 
 /**
- * @description Provides trend analysis of average ratings across semesters, optionally filtered by subject.
+ * @description Analyzes performance trends across semesters for subjects.
  * @route GET /api/v1/analytics/semester-trend-analysis
- * @param {Request} req - Express Request object (expects optional subjectId in query)
+ * @param {Request} req - Express Request object (expects optional subjectId and academicYearId in query)
  * @param {Response} res - Express Response object
  * @access Private (Admin/Faculty)
  */
 export const getSemesterTrendAnalysis = asyncHandler(
   async (req: Request, res: Response) => {
     try {
-      const { subjectId } = getSemesterTrendAnalysisQuerySchema.parse(
-        req.query
+      const { subjectId, academicYearId } =
+        getSemesterTrendAnalysisQuerySchema.parse(req.query);
+      const trends = await analyticsService.getSemesterTrendAnalysis(
+        subjectId,
+        academicYearId
       );
-      const trends = await analyticsService.getSemesterTrendAnalysis(subjectId);
       res.status(200).json({
         status: 'success',
         results: trends.length,
@@ -356,6 +381,59 @@ export const getSemesterDivisions = asyncHandler(
     res.status(200).json({
       success: true, // Keeping original success: true for this endpoint
       data: data,
+    });
+  }
+);
+
+/**
+ * @description Retrieves hierarchical filter dictionary for analytics (Academic Years → Departments → Subjects)
+ * @route GET /api/v1/analytics/filter-dictionary
+ * @param {Request} req - Express Request object
+ * @param {Response} res - Express Response object
+ * @access Private (Admin/Faculty)
+ */
+export const getFilterDictionary = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const filterData = await analyticsService.getFilterDictionary();
+    res.status(200).json({
+      status: 'success',
+      data: filterData,
+    });
+  }
+);
+
+/**
+ * @description Retrieves complete analytics data with filters for client-side processing
+ * @route GET /api/v1/analytics/complete-data
+ * @param {Request} req - Express Request object (expects academicYearId, departmentId, subjectId, semesterId, divisionId, lectureType, includeDeleted in query)
+ * @param {Response} res - Express Response object
+ * @access Private (Admin/Faculty)
+ */
+export const getCompleteAnalyticsData = asyncHandler(
+  async (req: Request, res: Response) => {
+    const {
+      academicYearId,
+      departmentId,
+      subjectId,
+      semesterId,
+      divisionId,
+      lectureType,
+      includeDeleted,
+    } = req.query;
+
+    const result = await analyticsService.getCompleteAnalyticsData(
+      academicYearId as string | undefined,
+      departmentId as string | undefined,
+      subjectId as string | undefined,
+      semesterId as string | undefined,
+      divisionId as string | undefined,
+      lectureType as 'LECTURE' | 'LAB' | undefined,
+      includeDeleted === 'true'
+    );
+
+    res.status(200).json({
+      status: 'success',
+      data: result,
     });
   }
 );
