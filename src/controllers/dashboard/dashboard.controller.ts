@@ -28,3 +28,22 @@ export const getDashboardStats = asyncHandler(
     });
   }
 );
+
+/**
+ * @description Handles the request to delete all database data (development only).
+ * This function is wrapped by asyncHandler to catch any asynchronous errors.
+ * @param {Request} req - Express Request object.
+ * @param {Response} res - Express Response object.
+ * @access Private (Super Admin only, development only)
+ */
+export const deleteAllData = asyncHandler(
+  async (_req: Request, res: Response) => {
+    await dashboardService.deleteAllData();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'All database data deleted successfully.',
+      data: null,
+    });
+  }
+);

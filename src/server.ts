@@ -6,6 +6,7 @@
 
 import app from './app'; // Import the configured Express app
 import config from './config'; // Import application configuration
+import { setupScheduledTasks } from './utils/scheduler'; // Import scheduler utility
 
 const PORT = config.port;
 
@@ -13,6 +14,9 @@ const PORT = config.port;
 const server = app.listen(PORT, () => {
   console.log(`Server running in ${config.nodeEnv} mode on port ${PORT}`);
   console.log(`Access API at: http://localhost:${PORT}/api/v1`);
+
+  // Setup scheduled tasks (like form expiration)
+  setupScheduledTasks();
 });
 
 // Handle unhandled promise rejections (e.g., database connection errors)

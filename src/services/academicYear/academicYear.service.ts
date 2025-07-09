@@ -11,23 +11,29 @@ import AppError from '../../utils/appError';
 class AcademicYearService {
   /**
    * Creates a new academic year.
-   * @param data - The data for the new academic year (yearString, startDate, endDate).
+   * @param data - The data for the new academic year (yearString, isActive).
    * @returns The created AcademicYear object.
    * @throws AppError if an academic year with the same yearString already exists.
    */
   public async createAcademicYear(data: {
     yearString: string;
-    startDate?: string;
-    endDate?: string;
+    isActive?: boolean;
   }): Promise<AcademicYear> {
-    const { yearString, startDate, endDate } = data;
+    const { yearString, isActive } = data;
 
     try {
+      // If this year is to be active, set all other years to inactive first
+      if (isActive) {
+        await prisma.academicYear.updateMany({
+          where: { isActive: true },
+          data: { isActive: false },
+        });
+      }
+
       const academicYear = await prisma.academicYear.create({
         data: {
           yearString: yearString,
-          startDate: startDate ? new Date(startDate) : undefined,
-          endDate: endDate ? new Date(endDate) : undefined,
+          isActive: isActive ?? false, // Default to false if not provided
         },
       });
       return academicYear;
@@ -84,23 +90,36 @@ class AcademicYearService {
   /**
    * Updates an existing academic year.
    * @param id - The ID of the academic year to update.
-   * @param data - The data to update (yearString, startDate, endDate).
+   * @param data - The data to update (yearString, isActive).
    * @returns The updated AcademicYear object.
    * @throws AppError if the academic year is not found or if the yearString already exists.
    */
   public async updateAcademicYear(
     id: string,
-    data: { yearString?: string; startDate?: string; endDate?: string }
+    data: {
+      yearString?: string;
+      isActive?: boolean;
+    }
   ): Promise<AcademicYear> {
-    const { yearString, startDate, endDate } = data;
+    const { yearString, isActive } = data;
 
     try {
+      // If this year is being set to active, deactivate all other years first
+      if (isActive) {
+        await prisma.academicYear.updateMany({
+          where: {
+            id: { not: id },
+            isActive: true,
+          },
+          data: { isActive: false },
+        });
+      }
+
       const academicYear = await prisma.academicYear.update({
         where: { id: id, isDeleted: false }, // Ensure it's not soft-deleted
         data: {
           yearString: yearString,
-          startDate: startDate ? new Date(startDate) : undefined,
-          endDate: endDate ? new Date(endDate) : undefined,
+          isActive: isActive,
         },
       });
       return academicYear;
@@ -146,6 +165,21 @@ class AcademicYearService {
         throw new AppError('Academic year not found for deletion.', 404);
       }
       throw new AppError('Failed to soft delete academic year.', 500);
+    }
+  }
+
+  /**
+   * Gets the currently active academic year.
+   * @returns The active AcademicYear object, or null if none is active.
+   */
+  public async getActiveAcademicYear(): Promise<AcademicYear | null> {
+    try {
+      const activeAcademicYear = await prisma.academicYear.findFirst({
+        where: { isActive: true, isDeleted: false },
+      });
+      return activeAcademicYear;
+    } catch (error: any) {
+      throw new AppError('Failed to retrieve active academic year.', 500);
     }
   }
 }

@@ -148,3 +148,35 @@ export const deleteAcademicYear = asyncHandler(
     });
   }
 );
+
+/**
+ * @description Retrieves the currently active academic year.
+ * @route GET /api/v1/academic-years/active
+ * @param {Request} req - Express Request object
+ * @param {Response} res - Express Response object
+ * @access Private (Admin)
+ */
+export const getActiveAcademicYear = asyncHandler(
+  async (_req: Request, res: Response) => {
+    // 1. Delegate to service layer
+    const activeAcademicYear =
+      await academicYearService.getActiveAcademicYear();
+
+    // 2. Handle not found scenario
+    if (!activeAcademicYear) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'No active academic year found.',
+        data: null,
+      });
+    }
+
+    // 3. Send success response
+    res.status(200).json({
+      status: 'success',
+      data: {
+        academicYear: activeAcademicYear,
+      },
+    });
+  }
+);

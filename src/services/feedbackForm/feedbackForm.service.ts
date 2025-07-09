@@ -414,7 +414,7 @@ class FeedbackFormService {
 
         // 3. Soft delete related StudentResponses
         await tx.studentResponse.updateMany({
-          where: { formId: id, isDeleted: false },
+          where: { feedbackFormId: id, isDeleted: false },
           data: { isDeleted: true },
         });
 
@@ -427,7 +427,7 @@ class FeedbackFormService {
                 originalStudentResponseId: {
                   in: (
                     await tx.studentResponse.findMany({
-                      where: { formId: id },
+                      where: { feedbackFormId: id },
                       select: { id: true },
                     })
                   ).map((sr) => sr.id),
@@ -587,11 +587,57 @@ class FeedbackFormService {
 
       // Send emails when form becomes active
       if (updatedForm.status === 'ACTIVE') {
-        // Assuming emailService needs formId and divisionId
-        await emailService.sendFormAccessEmail(
-          updatedForm.id,
-          updatedForm.divisionId
+        // Check if this form has override students first
+        console.log(
+          `Checking for override students for form ${updatedForm.id}`
         );
+        const hasOverrideStudents = await prisma.feedbackFormOverride.findFirst(
+          {
+            where: {
+              feedbackFormId: updatedForm.id,
+              isDeleted: false,
+              overrideStudents: {
+                some: {
+                  isDeleted: false,
+                },
+              },
+            },
+            include: {
+              overrideStudents: {
+                where: {
+                  isDeleted: false,
+                },
+                select: {
+                  id: true,
+                  email: true,
+                },
+              },
+            },
+          }
+        );
+
+        console.log(
+          `Override students found:`,
+          hasOverrideStudents ? hasOverrideStudents.overrideStudents.length : 0
+        );
+
+        if (
+          hasOverrideStudents &&
+          hasOverrideStudents.overrideStudents.length > 0
+        ) {
+          // Send emails to override students
+          console.log('Sending emails to override students');
+          await emailService.sendFormAccessEmailToOverrideStudents(
+            updatedForm.id
+          );
+        } else {
+          // Send emails to regular division students
+          console.log('Sending emails to regular division students');
+          await emailService.sendFormAccessEmail(
+            updatedForm.id,
+            updatedForm.divisionId
+          );
+        }
       }
 
       return updatedForm;
@@ -699,6 +745,31 @@ class FeedbackFormService {
         throw new AppError('Form not found or is deleted.', 404);
       }
 
+      // Check if the form is expired based on creation date (7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const formCreationDate = formAccess.createdAt;
+
+      const isExpiredByTime = formCreationDate < sevenDaysAgo;
+
+      // Update the form's isExpired status if needed
+      if (isExpiredByTime && !formAccess.form.isExpired) {
+        await prisma.feedbackForm.update({
+          where: { id: formAccess.form.id },
+          data: { isExpired: true },
+        });
+
+        throw new AppError(
+          'Form has expired. Forms are valid for 7 days only.',
+          403
+        );
+      }
+
+      // Check explicit expiration flag
+      if (formAccess.form?.isExpired) {
+        throw new AppError('Form has expired.', 403);
+      }
+
       // Check if the form is active (status)
       if (formAccess.form?.status !== 'ACTIVE') {
         throw new AppError('Form is not currently active.', 403);
@@ -724,6 +795,38 @@ class FeedbackFormService {
         throw error;
       }
       throw new AppError('Failed to retrieve form by token.', 500);
+    }
+  }
+
+  /**
+   * Expires feedback forms that are older than 7 days based on their creation date.
+   * This can be called by a scheduled job or API endpoint.
+   * @returns Promise<number> The number of forms that were marked as expired.
+   */
+  public async expireOldForms(): Promise<number> {
+    try {
+      // Calculate the date 7 days ago
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      // Update all forms that are older than 7 days and not already expired
+      const result = await prisma.feedbackForm.updateMany({
+        where: {
+          createdAt: {
+            lt: sevenDaysAgo,
+          },
+          isExpired: false,
+          isDeleted: false,
+        },
+        data: {
+          isExpired: true,
+        },
+      });
+
+      return result.count;
+    } catch (error: any) {
+      console.error('Error in FeedbackFormService.expireOldForms:', error);
+      throw new AppError('Failed to expire old forms.', 500);
     }
   }
 }

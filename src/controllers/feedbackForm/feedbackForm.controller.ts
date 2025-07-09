@@ -234,3 +234,24 @@ export const getFormByAccessToken = asyncHandler(
     });
   }
 );
+
+/**
+ * @description Expires feedback forms that are older than 7 days.
+ * @route POST /api/v1/feedback-forms/expire-old
+ * @param {Request} req - Express Request object
+ * @param {Response} res - Express Response object
+ * @access Private (Admin, HOD)
+ */
+export const expireOldForms = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const count = await feedbackFormService.expireOldForms();
+
+    res.status(200).json({
+      status: 'success',
+      message: `Successfully expired ${count} feedback forms.`,
+      data: {
+        expiredCount: count,
+      },
+    });
+  }
+);

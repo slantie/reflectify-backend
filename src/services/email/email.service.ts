@@ -190,7 +190,7 @@ class EmailService {
       // Upsert FormAccess record
       await prisma.formAccess.upsert({
         where: {
-          formId_studentId: {
+          form_student_unique: {
             formId,
             studentId: student.id,
           },
@@ -224,6 +224,118 @@ class EmailService {
     await Promise.allSettled(emailPromises);
     console.log(
       `Attempted to send feedback form emails for form ${formId} to division ${divisionId}.`
+    );
+  }
+
+  /**
+   * @description Sends feedback form access emails to override students for a specific form.
+   * Creates access tokens and sends personalized emails to each override student.
+   * @param formId The UUID of the feedback form.
+   * @throws AppError if form or override students are not found.
+   */
+  public async sendFormAccessEmailToOverrideStudents(
+    formId: string
+  ): Promise<void> {
+    console.log(
+      `Starting to send feedback form emails to override students for form ${formId}.`
+    );
+
+    // 1. Fetch Form Details
+    const form = await prisma.feedbackForm.findUnique({
+      where: { id: formId, isDeleted: false },
+      include: {
+        division: {
+          include: {
+            semester: true,
+          },
+        },
+      },
+    });
+
+    if (!form) {
+      throw new AppError('Feedback form not found or is deleted.', 404);
+    }
+
+    // 2. Fetch Override Students for this Form
+    const overrideRecord = await prisma.feedbackFormOverride.findFirst({
+      where: {
+        feedbackFormId: formId,
+        isDeleted: false,
+      },
+      include: {
+        overrideStudents: {
+          where: {
+            isDeleted: false,
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            enrollmentNumber: true,
+          },
+        },
+      },
+    });
+
+    if (!overrideRecord || !overrideRecord.overrideStudents.length) {
+      throw new AppError(
+        'No active override students found for this feedback form.',
+        404
+      );
+    }
+
+    const overrideStudents = overrideRecord.overrideStudents;
+    const formTitle = form.title;
+    const semesterNumber = form.division.semester.semesterNumber;
+    const divisionName = form.division.divisionName;
+
+    // 3. Create access tokens and send emails for each override student
+    const emailPromises = overrideStudents.map(async (student) => {
+      // Generate a unique access token for this student and form
+      const uniqueAccessToken = this.generateUniqueToken(
+        formId,
+        student.id,
+        student.enrollmentNumber || 'N/A'
+      );
+
+      // Create FormAccess record for override student
+      try {
+        await prisma.formAccess.create({
+          data: {
+            formId,
+            // studentId is omitted for override students (will be null in DB)
+            overrideStudentId: student.id,
+            accessToken: uniqueAccessToken,
+            isSubmitted: false,
+            isDeleted: false,
+          },
+        });
+      } catch (error: any) {
+        console.error(
+          `Failed to create FormAccess for override student ${student.id}:`,
+          error.message
+        );
+        throw new AppError(
+          `Failed to create form access for student ${student.name}`,
+          500
+        );
+      }
+
+      // Send the email
+      await this.sendEmail(
+        student.email,
+        student.name,
+        formTitle,
+        uniqueAccessToken,
+        semesterNumber,
+        divisionName
+      );
+    });
+
+    // Wait for all emails to be processed (sent or failed)
+    await Promise.allSettled(emailPromises);
+    console.log(
+      `Attempted to send feedback form emails for form ${formId} to ${overrideStudents.length} override students.`
     );
   }
 }

@@ -42,12 +42,10 @@ enum SemesterTypeEnum {
 }
 
 model AcademicYear {
-    id         String    @id @default(uuid())
-    yearString String    @unique @map("year_string")
-    startDate  DateTime? @map("start_date")
-    endDate    DateTime? @map("end_date")
-    isActive   Boolean   @default(false) @map("is_active")
-    isDeleted  Boolean   @default(false) @map("is_deleted") // NEW: isDeleted
+    id         String  @id @default(uuid())
+    yearString String  @unique @map("year_string")
+    isActive   Boolean @default(false) @map("is_active")
+    isDeleted  Boolean @default(false) @map("is_deleted")
 
     semesters          Semester[]
     students           Student[]
@@ -65,7 +63,7 @@ model OTP {
     email     String
     otp       String
     expiresAt DateTime @map("expires_at")
-    isDeleted Boolean  @default(false) @map("is_deleted") // NEW: isDeleted
+    isDeleted Boolean  @default(false) @map("is_deleted")
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -244,6 +242,27 @@ model Student {
     @@map("students")
 }
 
+model OverrideStudent {
+    id                     String  @id @default(uuid())
+    feedbackFormOverrideId String  @map("feedback_form_override_id")
+    name                   String
+    email                  String
+    enrollmentNumber       String?
+    batch                  String?
+    phoneNumber            String?
+    department             String? // Just store as string, not FK
+    semester               String? // Just store as string, not FK
+    isDeleted              Boolean @default(false) @map("is_deleted")
+
+    feedbackFormOverride FeedbackFormOverride @relation(fields: [feedbackFormOverrideId], references: [id])
+    responses            StudentResponse[]
+    formAccess           FormAccess[]
+
+    @@unique([email, feedbackFormOverrideId])
+    @@index([feedbackFormOverrideId])
+    @@map("override_students")
+}
+
 model Admin {
     id          String      @id @default(uuid())
     name        String
@@ -306,35 +325,54 @@ model FeedbackForm {
     accessHash          String     @unique @map("access_hash")
     isDeleted           Boolean    @default(false) @map("is_deleted") // ALREADY EXISTS, ENSURED consistency with map name
 
-    division          Division           @relation(fields: [divisionId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    subjectAllocation SubjectAllocation  @relation(fields: [subjectAllocationId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    questions         FeedbackQuestion[]
-    responses         StudentResponse[]
-    createdAt         DateTime           @default(now()) @map("created_at")
-    updatedAt         DateTime           @updatedAt @map("updated_at")
-    formAccess        FormAccess[]
+    division             Division               @relation(fields: [divisionId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
+    subjectAllocation    SubjectAllocation      @relation(fields: [subjectAllocationId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
+    questions            FeedbackQuestion[]
+    responses            StudentResponse[]
+    createdAt            DateTime               @default(now()) @map("created_at")
+    updatedAt            DateTime               @updatedAt @map("updated_at")
+    formAccess           FormAccess[]
+    FeedbackFormOverride FeedbackFormOverride[]
 
     @@index([divisionId, subjectAllocationId, status])
     @@index([subjectAllocationId])
     @@map("feedback_forms")
 }
 
+model FeedbackFormOverride {
+    id             String   @id @default(uuid())
+    feedbackFormId String   @map("feedback_form_id")
+    uploadedAt     DateTime @default(now()) @map("uploaded_at")
+    uploadedBy     String   @map("uploaded_by") // Admin ID
+    isDeleted      Boolean  @default(false) @map("is_deleted")
+
+    feedbackForm     FeedbackForm      @relation(fields: [feedbackFormId], references: [id])
+    overrideStudents OverrideStudent[]
+
+    @@index([feedbackFormId])
+    @@map("feedback_form_overrides")
+}
+
 model FormAccess {
     id          String  @id @default(uuid())
     formId      String
-    studentId   String
+    studentId   String? // Made optional to support override students
     accessToken String  @unique
     isSubmitted Boolean @default(false)
     isDeleted   Boolean @default(false) @map("is_deleted") // NEW: isDeleted
 
-    form      FeedbackForm @relation(fields: [formId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    student   Student      @relation(fields: [studentId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    createdAt DateTime     @default(now()) @map("created_at")
-    updatedAt DateTime     @updatedAt @map("updated_at")
+    form              FeedbackForm     @relation(fields: [formId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
+    student           Student?         @relation(fields: [studentId], references: [id], onDelete: Restrict) // Made optional
+    createdAt         DateTime         @default(now()) @map("created_at")
+    updatedAt         DateTime         @updatedAt @map("updated_at")
+    OverrideStudent   OverrideStudent? @relation(fields: [overrideStudentId], references: [id])
+    overrideStudentId String?
 
-    @@unique([formId, studentId])
+    @@unique([formId, studentId], name: "form_student_unique")
+    @@unique([formId, overrideStudentId], name: "form_override_student_unique")
     @@index([formId])
     @@index([studentId])
+    @@index([overrideStudentId])
     @@map("form_access")
 }
 
@@ -380,23 +418,30 @@ model FeedbackQuestion {
 }
 
 model StudentResponse {
-    id          String   @id @default(uuid())
-    studentId   String   @map("student_id")
-    formId      String   @map("form_id")
-    questionId  String   @map("question_id")
-    value       Json
-    submittedAt DateTime @default(now()) @map("submitted_at")
-    isDeleted   Boolean  @default(false) @map("is_deleted") // ALREADY EXISTS, ENSURED consistency with map name
+    id             String @id @default(uuid())
+    feedbackFormId String @map("feedback_form_id")
+    questionId     String @map("question_id")
 
-    student   Student          @relation(fields: [studentId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    form      FeedbackForm     @relation(fields: [formId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    question  FeedbackQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict) // UPDATED: onDelete: Cascade -> Restrict
-    createdAt DateTime         @default(now()) @map("created_at")
-    updatedAt DateTime         @updatedAt @map("updated_at")
+    // Make studentId optional and add overrideStudentId
+    studentId         String? @map("student_id")
+    overrideStudentId String? @map("override_student_id")
 
-    @@index([studentId, formId])
-    @@index([formId])
+    responseValue String   @map("response_value")
+    submittedAt   DateTime @default(now()) @map("submitted_at")
+    isDeleted     Boolean  @default(false) @map("is_deleted")
+
+    feedbackForm    FeedbackForm     @relation(fields: [feedbackFormId], references: [id])
+    question        FeedbackQuestion @relation(fields: [questionId], references: [id])
+    student         Student?         @relation(fields: [studentId], references: [id])
+    overrideStudent OverrideStudent? @relation(fields: [overrideStudentId], references: [id])
+
+    // Ensure either studentId or overrideStudentId is present, but not both
+    @@unique([feedbackFormId, questionId, studentId])
+    @@unique([feedbackFormId, questionId, overrideStudentId])
+    @@index([feedbackFormId])
     @@index([questionId])
+    @@index([studentId])
+    @@index([overrideStudentId])
     @@map("student_responses")
 }
 
@@ -490,10 +535,12 @@ model FeedbackSnapshot {
     facultyEmail        String @map("faculty_email")
 
     // 7. Student Fields
-    studentId               String @map("student_id")
-    studentEnrollmentNumber String @map("student_enrollment_number")
-    studentName             String @map("student_name")
-    studentEmail            String @map("student_email")
+    studentId               String? @map("student_id")
+    studentEnrollmentNumber String  @map("student_enrollment_number")
+    studentName             String  @map("student_name")
+    studentEmail            String  @map("student_email")
+    overrideStudentId       String? @map("override_student_id")
+    isOverrideStudent       Boolean @default(false) @map("is_override_student")
 
     // 8. Feedback Form Fields
     formId        String  @map("form_id")
@@ -532,6 +579,8 @@ model FeedbackSnapshot {
     @@index([subjectId])
     @@index([facultyId])
     @@index([studentId])
+    @@index([overrideStudentId])
+    @@index([isOverrideStudent])
     @@index([formId])
     @@index([questionId])
     @@index([questionCategoryId])

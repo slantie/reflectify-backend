@@ -1,58 +1,39 @@
 // src/services/common/database.service.ts
 
-import { prisma } from './prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
+import { prisma } from './prisma.service';
+import AppError from '../../utils/appError';
 
 class DatabaseService {
   /**
-   * @dev Cleans all database tables by deleting records in the correct dependency order
-   * to avoid foreign key constraint issues.
-   * @returns Promise<void>
-   * @throws AppError if the database cleaning process fails.
+   * Cleans all database tables except the Admin table.
    */
   public async cleanDatabase(): Promise<void> {
     try {
-      // Delete in order of dependencies (from child to parent)
-      // This order is crucial to prevent foreign key constraint errors.
-      // If your schema changes, this order might need adjustment.
       await prisma.$transaction([
-        // Dependent on multiple entities (form, question, student)
         prisma.studentResponse.deleteMany(),
-        prisma.feedbackSnapshot.deleteMany(), // Dependent on studentResponse
-        // Dependent on form, student - MUST be deleted before feedbackForm
         prisma.formAccess.deleteMany(),
-        // Dependent on form, category, faculty, subject
         prisma.feedbackQuestion.deleteMany(),
-        // Dependent on division, subjectAllocation
         prisma.feedbackForm.deleteMany(),
-        // Dependent on form, studentResponse
         prisma.feedbackAnalytics.deleteMany(),
-        // Dependent on faculty, subject, division, semester, department, academicYear
         prisma.subjectAllocation.deleteMany(),
-        // Dependent on department, semester, division, academicYear
         prisma.student.deleteMany(),
-        prisma.promotionHistory.deleteMany(), // Dependent on student, semester
-        // Dependent on department
+        prisma.promotionHistory.deleteMany(),
         prisma.faculty.deleteMany(),
-        // Dependent on department, semester
         prisma.subject.deleteMany(),
-        // Dependent on department, semester
         prisma.division.deleteMany(),
-        // Dependent on department, academicYear
         prisma.semester.deleteMany(),
-        // Dependent on college
         prisma.department.deleteMany(),
-        // Independent (top-level)
         prisma.college.deleteMany(),
-        prisma.analyticsView.deleteMany(), // Independent or dependent on analytics data
-        prisma.customReport.deleteMany(), // Independent or dependent on other data
-        prisma.questionCategory.deleteMany(), // Independent or dependent on question
-        prisma.academicYear.deleteMany(), // Independent
-        prisma.admin.deleteMany(), // Independent
-        prisma.oTP.deleteMany(), // Independent
+        prisma.analyticsView.deleteMany(),
+        prisma.customReport.deleteMany(),
+        prisma.questionCategory.deleteMany(),
+        prisma.academicYear.deleteMany(),
+        prisma.oTP.deleteMany(),
+        prisma.feedbackSnapshot.deleteMany(),
+        // prisma.admin.deleteMany(), // <-- Do NOT delete Admins
       ]);
 
-      console.log('🗑️ Database cleaned successfully');
+      console.log('🗑️ Database cleaned successfully (Admins preserved)');
     } catch (error: any) {
       console.error('Error in DatabaseService.cleanDatabase:', error);
       throw new AppError('Failed to clean database.', 500);

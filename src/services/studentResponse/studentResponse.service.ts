@@ -49,6 +49,7 @@ class StudentResponseService {
             division: true, // Include division details for the student
           },
         },
+        OverrideStudent: true, // Include override student data if present
       },
     });
 
@@ -78,23 +79,65 @@ class StudentResponseService {
       );
     }
 
+    // Determine if this is a regular student or override student
+    const isOverrideStudent = !!formAccess.OverrideStudent;
+    const isRegularStudent = !!formAccess.student;
+
     // Ensure all required related data is available for snapshot creation
     if (
-      !formAccess.student ||
-      !formAccess.student.academicYear ||
-      !formAccess.student.semester ||
-      !formAccess.student.division ||
       !formAccess.form ||
       !formAccess.form.subjectAllocation ||
       !formAccess.form.subjectAllocation.faculty ||
       !formAccess.form.subjectAllocation.subject
     ) {
       console.error(
-        'Missing essential related data for feedback snapshot:',
+        'Missing essential form data for feedback snapshot:',
         JSON.stringify(formAccess, null, 2) // Log the full formAccess for debugging
       );
       throw new AppError(
-        'Internal server error: Missing essential form or student data for snapshot creation.',
+        'Internal server error: Missing essential form data for snapshot creation.',
+        500
+      );
+    }
+
+    // For regular students, validate student-related data
+    if (
+      isRegularStudent &&
+      (!formAccess.student ||
+        !formAccess.student.academicYear ||
+        !formAccess.student.semester ||
+        !formAccess.student.division)
+    ) {
+      console.error(
+        'Missing essential student data for feedback snapshot:',
+        JSON.stringify(formAccess, null, 2)
+      );
+      throw new AppError(
+        'Internal server error: Missing essential student data for snapshot creation.',
+        500
+      );
+    }
+
+    // For override students, validate override student data
+    if (isOverrideStudent && !formAccess.OverrideStudent) {
+      console.error(
+        'Missing override student data for feedback snapshot:',
+        JSON.stringify(formAccess, null, 2)
+      );
+      throw new AppError(
+        'Internal server error: Missing override student data for snapshot creation.',
+        500
+      );
+    }
+
+    // Ensure we have either a regular student or override student
+    if (!isRegularStudent && !isOverrideStudent) {
+      console.error(
+        'No student data found (neither regular nor override):',
+        JSON.stringify(formAccess, null, 2)
+      );
+      throw new AppError(
+        'Internal server error: No student data found for snapshot creation.',
         500
       );
     }
@@ -143,25 +186,124 @@ class StudentResponseService {
         // Create the original StudentResponse record.
         const studentResponse = await tx.studentResponse.create({
           data: {
-            studentId: formAccess.studentId,
-            formId: formAccess.formId,
+            studentId: formAccess.studentId, // This will be null for override students
+            overrideStudentId: formAccess.overrideStudentId, // This will be null for regular students
+            feedbackFormId: formAccess.form.id,
             questionId: question.id,
-            value: JSON.stringify(value), // Store response value as JSON string
+            responseValue: JSON.stringify(value), // Store response value as JSON string
             isDeleted: false, // Explicitly set to false for new responses
             submittedAt: new Date(), // Capture submission timestamp
           },
         });
 
         // Create the denormalized FeedbackSnapshot record with all enhanced fields
+        // Build student data based on whether it's regular or override student
+        let studentData;
+        let academicData;
+
+        if (isRegularStudent && formAccess.student) {
+          studentData = {
+            studentId: formAccess.student.id,
+            studentEnrollmentNumber: formAccess.student.enrollmentNumber,
+            studentName: formAccess.student.name,
+            studentEmail: formAccess.student.email,
+            overrideStudentId: null,
+            isOverrideStudent: false,
+          };
+
+          academicData = {
+            // Academic Year Information
+            academicYearId: formAccess.student.academicYear.id,
+            academicYearString: formAccess.student.academicYear.yearString,
+            academicYearIsDeleted: formAccess.student.academicYear.isDeleted,
+
+            // Department Information (from semester relation)
+            departmentId: formAccess.student.semester.departmentId,
+            departmentName: formAccess.student.semester.department?.name || '',
+            departmentAbbreviation:
+              formAccess.student.semester.department?.abbreviation || '',
+            departmentIsDeleted:
+              formAccess.student.semester.department?.isDeleted || false,
+
+            // Semester Information
+            semesterId: formAccess.student.semester.id,
+            semesterNumber: formAccess.student.semester.semesterNumber,
+            semesterIsDeleted: formAccess.student.semester.isDeleted,
+
+            // Division Information
+            divisionId: formAccess.student.division.id,
+            divisionName: formAccess.student.division.divisionName,
+            divisionIsDeleted: formAccess.student.division.isDeleted,
+          };
+        } else if (isOverrideStudent && formAccess.OverrideStudent) {
+          studentData = {
+            studentId: null, // No regular student for override students
+            studentEnrollmentNumber:
+              formAccess.OverrideStudent.enrollmentNumber || '',
+            studentName: formAccess.OverrideStudent.name,
+            studentEmail: formAccess.OverrideStudent.email,
+            overrideStudentId: formAccess.OverrideStudent.id,
+            isOverrideStudent: true,
+          };
+
+          // For override students, we need to get academic data from the form's division
+          // since override students don't have direct academic year/semester/division relations
+          const formDivision = await tx.division.findUnique({
+            where: { id: formAccess.form.subjectAllocation.divisionId },
+            include: {
+              semester: {
+                include: {
+                  department: true,
+                  academicYear: true,
+                },
+              },
+            },
+          });
+
+          academicData = {
+            // Academic Year Information (from form's division)
+            academicYearId: formDivision?.semester.academicYear.id || '',
+            academicYearString:
+              formDivision?.semester.academicYear.yearString || '',
+            academicYearIsDeleted:
+              formDivision?.semester.academicYear.isDeleted || false,
+
+            // Department Information (from form's division)
+            departmentId: formDivision?.semester.departmentId || '',
+            departmentName:
+              formDivision?.semester.department?.name ||
+              formAccess.OverrideStudent.department ||
+              '',
+            departmentAbbreviation:
+              formDivision?.semester.department?.abbreviation || '',
+            departmentIsDeleted:
+              formDivision?.semester.department?.isDeleted || false,
+
+            // Semester Information (from form's division)
+            semesterId: formDivision?.semester.id || '',
+            semesterNumber:
+              formDivision?.semester.semesterNumber ||
+              parseInt(formAccess.OverrideStudent.semester || '0'),
+            semesterIsDeleted: formDivision?.semester.isDeleted || false,
+
+            // Division Information (from form's division)
+            divisionId: formDivision?.id || '',
+            divisionName: formDivision?.divisionName || '',
+            divisionIsDeleted: formDivision?.isDeleted || false,
+          };
+        } else {
+          throw new AppError(
+            'Unable to determine student type for snapshot creation.',
+            500
+          );
+        }
+
         await tx.feedbackSnapshot.create({
           data: {
             originalStudentResponseId: studentResponse.id, // Link to the original response
 
             // Student Information
-            studentId: formAccess.student.id,
-            studentEnrollmentNumber: formAccess.student.enrollmentNumber,
-            studentName: formAccess.student.name,
-            studentEmail: formAccess.student.email,
+            ...studentData,
 
             // Form Information
             formId: formAccess.form.id,
@@ -191,28 +333,8 @@ class StudentResponseService {
             subjectCode: question.subject.subjectCode,
             subjectIsDeleted: question.subject.isDeleted,
 
-            // Academic Year Information
-            academicYearId: formAccess.student.academicYear.id,
-            academicYearString: formAccess.student.academicYear.yearString,
-            academicYearIsDeleted: formAccess.student.academicYear.isDeleted,
-
-            // Department Information (from semester relation)
-            departmentId: formAccess.student.semester.departmentId,
-            departmentName: formAccess.student.semester.department?.name || '',
-            departmentAbbreviation:
-              formAccess.student.semester.department?.abbreviation || '',
-            departmentIsDeleted:
-              formAccess.student.semester.department?.isDeleted || false,
-
-            // Semester Information
-            semesterId: formAccess.student.semester.id,
-            semesterNumber: formAccess.student.semester.semesterNumber,
-            semesterIsDeleted: formAccess.student.semester.isDeleted,
-
-            // Division Information
-            divisionId: formAccess.student.division.id,
-            divisionName: formAccess.student.division.divisionName,
-            divisionIsDeleted: formAccess.student.division.isDeleted,
+            // Academic Data
+            ...academicData,
 
             // Response Data
             responseValue: JSON.stringify(value), // Store the actual response value

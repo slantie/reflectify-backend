@@ -170,14 +170,15 @@ class SubjectDataUploadService {
   }
 
   /**
-   * @dev Finds the AcademicYear record in the database and caches it.
-   * It does NOT create the academic year if it doesn't exist.
+   * @dev Finds or creates the AcademicYear record in the database and caches it.
+   * If the academic year doesn't exist, it will be created automatically.
    * @param {string} yearString - The academic year string (e.g., "2024-2025").
    * @returns {Promise<AcademicYear>} The AcademicYear record.
    * @private
-   * @throws AppError if the academic year is not found.
    */
-  private async findAcademicYear(yearString: string): Promise<AcademicYear> {
+  private async findOrCreateAcademicYear(
+    yearString: string
+  ): Promise<AcademicYear> {
     // Explicitly type academicYear to allow null or undefined from cache/findFirst
     let academicYear: AcademicYear | null | undefined =
       academicYearCache.get(yearString);
@@ -188,10 +189,40 @@ class SubjectDataUploadService {
     });
 
     if (!academicYear) {
-      throw new AppError(
-        `Academic Year '${yearString}' not found. Please create it first via the Academic Year management API.`,
-        400
+      // Create the academic year if it doesn't exist
+      console.log(
+        `Academic Year '${yearString}' not found. Creating it automatically.`
       );
+
+      // Find any existing active academic year
+      const existingActiveYear = await prisma.academicYear.findFirst({
+        where: {
+          isActive: true,
+          isDeleted: false,
+        },
+      });
+
+      // If there's an active year, deactivate it first
+      if (existingActiveYear) {
+        await prisma.academicYear.update({
+          where: { id: existingActiveYear.id },
+          data: { isActive: false },
+        });
+        console.log(
+          `Deactivated previous active academic year: ${existingActiveYear.yearString}`
+        );
+      }
+
+      // Create the new academic year
+      academicYear = await prisma.academicYear.create({
+        data: {
+          yearString: yearString,
+          isActive: true, // Set as active by default
+          isDeleted: false,
+        },
+      });
+
+      console.log(`Academic Year '${yearString}' created successfully.`);
     }
 
     academicYearCache.set(yearString, academicYear);
@@ -272,17 +303,6 @@ class SubjectDataUploadService {
         );
       }
 
-      // Determine the current academic year string (e.g., "2024-2025")
-      const now = new Date();
-      const currentMonth = now.getMonth(); // 0-indexed (Jan=0, Dec=11)
-      let currentYear = now.getFullYear();
-      // If current month is before August (0-6), assume previous academic year started in previous calendar year
-      if (currentMonth < 7) {
-        // Assuming academic year starts in August (month 7)
-        currentYear = currentYear - 1;
-      }
-      const currentYearString = `${currentYear}-${currentYear + 1}`;
-
       // Clear caches at the beginning of the request to ensure fresh data
       collegeCache.clear();
       departmentCache.clear();
@@ -292,9 +312,30 @@ class SubjectDataUploadService {
       // Ensure College exists (cached)
       const college = await this.ensureCollege();
 
-      // Find the AcademicYear for the current year string
-      const academicYear = await this.findAcademicYear(currentYearString);
-      // findAcademicYear throws AppError if not found, so no need for if (!academicYear) check here.
+      // First try to get active academic year
+      let academicYear = await prisma.academicYear.findFirst({
+        where: {
+          isActive: true,
+          isDeleted: false,
+        },
+      });
+
+      // If no active year exists, create one based on current date
+      if (!academicYear) {
+        // Determine the current academic year string (e.g., "2024-2025")
+        const now = new Date();
+        const currentMonth = now.getMonth(); // 0-indexed (Jan=0, Dec=11)
+        let currentYear = now.getFullYear();
+        // If current month is before August (0-6), assume previous academic year started in previous calendar year
+        if (currentMonth < 7) {
+          // Assuming academic year starts in August (month 7)
+          currentYear = currentYear - 1;
+        }
+        const currentYearString = `${currentYear}-${currentYear + 1}`;
+
+        academicYear = await this.findOrCreateAcademicYear(currentYearString);
+      }
+      // findOrCreateAcademicYear will create the academic year if it doesn't exist
 
       for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber);

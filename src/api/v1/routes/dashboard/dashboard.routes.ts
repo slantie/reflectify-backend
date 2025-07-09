@@ -6,7 +6,10 @@
 
 import { Router } from 'express';
 import { Designation } from '@prisma/client';
-import { getDashboardStats } from '../../../../controllers/dashboard/dashboard.controller';
+import {
+  getDashboardStats,
+  deleteAllData,
+} from '../../../../controllers/dashboard/dashboard.controller';
 import {
   isAuthenticated,
   authorizeRoles,
@@ -28,5 +31,13 @@ router.get(
   ), // Example roles, adjust as needed
   getDashboardStats
 ); // GET /api/v1/dashboard/stats
+
+// Route for deleting all database data (development only)
+// Only accessible by super admins and only in development environment
+router.delete(
+  '/delete-all-data',
+  authorizeRoles(Designation.SUPER_ADMIN), // Only super admins
+  deleteAllData
+); // DELETE /api/v1/dashboard/delete-all-data
 
 export default router;
