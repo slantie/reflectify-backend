@@ -28,29 +28,29 @@ router.use(isAuthenticated);
 // Routes for individual semester operations
 router
   .route('/')
-  .get(getSemesters) // GET /api/v1/semesters (can include query params for filtering)
+  .get(getSemesters)
   .post(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     createSemester
-  ); // POST /api/v1/semesters
+  );
 
 router
   .route('/:id')
-  .get(getSemesterById) // GET /api/v1/semesters/:id
+  .get(getSemesterById)
   .patch(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     updateSemester
-  ) // PATCH /api/v1/semesters/:id
+  )
   .delete(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     softDeleteSemester
-  ); // DELETE /api/v1/semesters/:id (soft delete)
+  );
 
 router.post(
   '/batch',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   batchCreateSemesters
-); // POST /api/v1/semesters/batch
+);
 
 // New route to get all semesters for a specific department
 router.get(
@@ -60,7 +60,7 @@ router.get(
     Designation.HOD,
     Designation.AsstProf,
     Designation.LabAsst
-  ), // Example roles for this route
+  ),
   getSemestersByDepartment
 );
 

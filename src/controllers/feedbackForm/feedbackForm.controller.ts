@@ -1,4 +1,9 @@
-// src/controllers/feedbackForm/feedbackForm.controller.ts
+/**
+ * @file src/controllers/feedbackForm/feedbackForm.controller.ts
+ * @description Controller for feedback form operations.
+ * Handles request parsing, delegates to FeedbackFormService, and sends responses.
+ * Uses asyncHandler for error handling and Zod for validation.
+ */
 
 import { Request, Response } from 'express';
 import { feedbackFormService } from '../../services/feedbackForm/feedbackForm.service';
@@ -14,16 +19,10 @@ import {
   accessTokenParamSchema,
 } from '../../utils/validators/feedbackForm.validation';
 
-/**
- * @description Generates feedback forms based on department and selected semesters/divisions.
- * @route POST /api/v1/feedback-forms/generate
- * @param {Request} req - Express Request object (expects generation request data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const generateForms = asyncHandler(
+  // Generates feedback forms based on department and selected semesters/divisions.
   async (req: Request, res: Response) => {
-    const validatedData = generateFormsSchema.parse(req.body); // Validate request body
+    const validatedData = generateFormsSchema.parse(req.body);
 
     const generatedForms =
       await feedbackFormService.generateForms(validatedData);
@@ -39,14 +38,8 @@ export const generateForms = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves all active feedback forms.
- * @route GET /api/v1/feedback-forms
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf, Student)
- */
 export const getAllForms = asyncHandler(
+  // Retrieves all active feedback forms.
   async (_req: Request, res: Response) => {
     const forms = await feedbackFormService.getAllForms();
 
@@ -60,15 +53,9 @@ export const getAllForms = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves a single feedback form by ID.
- * @route GET /api/v1/feedback-forms/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf, Student)
- */
 export const getFormById = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = idParamSchema.parse(req.params); // Validate ID
+  // Retrieves a single feedback form by ID.
+  const { id } = idParamSchema.parse(req.params);
 
   const form = await feedbackFormService.getFormById(id);
 
@@ -84,16 +71,10 @@ export const getFormById = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-/**
- * @description Updates an existing feedback form.
- * @route PATCH /api/v1/feedback-forms/:id
- * @param {Request} req - Express Request object (expects id in params, partial form data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const updateForm = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = idParamSchema.parse(req.params); // Validate ID
-  const validatedData = updateFormSchema.parse(req.body); // Validate request body
+  // Updates an existing feedback form.
+  const { id } = idParamSchema.parse(req.params);
+  const validatedData = updateFormSchema.parse(req.body);
 
   const updatedForm = await feedbackFormService.updateForm(id, validatedData);
 
@@ -106,38 +87,26 @@ export const updateForm = asyncHandler(async (req: Request, res: Response) => {
   });
 });
 
-/**
- * @description Soft deletes a feedback form.
- * @route DELETE /api/v1/feedback-forms/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const softDeleteForm = asyncHandler(
+  // Soft deletes a feedback form.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     await feedbackFormService.softDeleteForm(id);
 
     res.status(204).json({
       status: 'success',
       message: 'Feedback form soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );
 
-/**
- * @description Adds a new question to an existing feedback form.
- * @route POST /api/v1/feedback-forms/:id/questions
- * @param {Request} req - Express Request object (expects form ID in params, question data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const addQuestionToForm = asyncHandler(
+  // Adds a new question to an existing feedback form.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate form ID
-    const validatedData = addQuestionToFormSchema.parse(req.body); // Validate question data
+    const { id } = idParamSchema.parse(req.params);
+    const validatedData = addQuestionToFormSchema.parse(req.body);
 
     const updatedForm = await feedbackFormService.addQuestionToForm(
       id,
@@ -154,17 +123,11 @@ export const addQuestionToForm = asyncHandler(
   }
 );
 
-/**
- * @description Updates the status and dates of a single feedback form.
- * @route PATCH /api/v1/feedback-forms/:id/status
- * @param {Request} req - Express Request object (expects form ID in params, status/date data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const updateFormStatus = asyncHandler(
+  // Updates the status and dates of a single feedback form.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate form ID
-    const validatedData = updateFormStatusSchema.parse(req.body); // Validate status/date data
+    const { id } = idParamSchema.parse(req.params);
+    const validatedData = updateFormStatusSchema.parse(req.body);
 
     const updatedForm = await feedbackFormService.updateFormStatus(
       id,
@@ -181,16 +144,10 @@ export const updateFormStatus = asyncHandler(
   }
 );
 
-/**
- * @description Bulk updates the status and dates for multiple feedback forms.
- * @route PATCH /api/v1/feedback-forms/bulk-status
- * @param {Request} req - Express Request object (expects array of form IDs, status, and dates in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const bulkUpdateFormStatus = asyncHandler(
+  // Bulk updates the status and dates for multiple feedback forms.
   async (req: Request, res: Response) => {
-    const validatedData = bulkUpdateFormStatusSchema.parse(req.body); // Validate bulk update data
+    const validatedData = bulkUpdateFormStatusSchema.parse(req.body);
 
     const updatedForms =
       await feedbackFormService.bulkUpdateFormStatus(validatedData);
@@ -206,23 +163,14 @@ export const bulkUpdateFormStatus = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves a feedback form using an access token.
- * @route GET /api/v1/feedback-forms/access/:token
- * @param {Request} req - Express Request object (expects access token in params)
- * @param {Response} res - Express Response object
- * @access Public (Student via token)
- */
 export const getFormByAccessToken = asyncHandler(
+  // Retrieves a feedback form using an access token.
   async (req: Request, res: Response) => {
-    const { token } = accessTokenParamSchema.parse(req.params); // Validate access token
+    const { token } = accessTokenParamSchema.parse(req.params);
 
     const form = await feedbackFormService.getFormByAccessToken(token);
 
     if (!form) {
-      // Service throws AppError for specific not found/forbidden cases,
-      // so this 'if' might only catch null from service if it doesn't throw.
-      // However, the service is designed to throw AppError, so this branch might not be hit.
       throw new AppError('Form not found or inaccessible.', 404);
     }
 
@@ -235,14 +183,8 @@ export const getFormByAccessToken = asyncHandler(
   }
 );
 
-/**
- * @description Expires feedback forms that are older than 7 days.
- * @route POST /api/v1/feedback-forms/expire-old
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const expireOldForms = asyncHandler(
+  // Expires feedback forms that are older than 7 days.
   async (_req: Request, res: Response) => {
     const count = await feedbackFormService.expireOldForms();
 

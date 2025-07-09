@@ -1,27 +1,20 @@
 /**
  * @file src/utils/scheduler.ts
- * @description Utility for scheduling automated tasks in the application
- * Handles periodic tasks like expiring old feedback forms
+ * @description Utility for scheduling automated tasks in the application.
  */
 
 import { feedbackFormService } from '../services/feedbackForm/feedbackForm.service';
 
-/**
- * Sets up all scheduled tasks for the application
- */
+// Sets up all recurring scheduled tasks for the application.
 export const setupScheduledTasks = () => {
-  // Schedule the form expiration task to run daily at midnight
   scheduleFormExpiration();
 };
 
-/**
- * Schedules the feedback form expiration task
- * Runs daily to expire forms older than 7 days
- */
+// Schedules the feedback form expiration task to run periodically.
 const scheduleFormExpiration = () => {
-  const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
-  // Function to run the expiration task
+  // Defines the asynchronous function that performs the expiration task.
   const runExpirationTask = async () => {
     try {
       console.log('[Scheduler] Running feedback form expiration task...');
@@ -31,11 +24,9 @@ const scheduleFormExpiration = () => {
       console.error('[Scheduler] Error expiring feedback forms:', error);
     }
 
-    // Schedule the next run
     setTimeout(runExpirationTask, ONE_DAY_MS);
   };
 
-  // Run immediately once and then schedule
   runExpirationTask();
 
   console.log('[Scheduler] Form expiration task scheduled successfully.');

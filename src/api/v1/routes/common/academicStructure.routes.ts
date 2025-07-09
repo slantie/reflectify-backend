@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import { getAcademicStructure } from '../../../../controllers/common/academicStructure.controller'; // Updated import path
-import { isAuthenticated } from '../../../../middlewares/auth.middleware'; // Assuming isAuthenticated middleware exists
+import { getAcademicStructure } from '../../../../controllers/common/academicStructure.controller';
+import { isAuthenticated } from '../../../../middlewares/auth.middleware';
 
 const router = Router();
 

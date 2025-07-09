@@ -1,4 +1,9 @@
-// src/controllers/overrideStudents/overrideStudents.controller.ts
+/**
+ * @file src/controllers/overrideStudents/overrideStudents.controller.ts
+ * @description Controller for Override Students operations.
+ * Handles request parsing, delegates to OverrideStudentsService, and sends responses.
+ * Uses asyncHandler for error handling and Zod for validation.
+ */
 
 import { Request, Response } from 'express';
 import { overrideStudentsService } from '../../services/overrideStudents/overrideStudents.service';
@@ -12,19 +17,11 @@ import {
   overrideStudentIdParamSchema,
 } from '../../utils/validators/overrideStudents.validation';
 
-/**
- * @description Uploads override students for a feedback form from an Excel/CSV file.
- * @route POST /api/v1/feedback-forms/:id/override-students/upload
- * @param {Request} req - Express Request object (expects form ID in params, file in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const uploadOverrideStudents = asyncHandler(
+  // Uploads override students for a feedback form from an Excel/CSV file.
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
-    // Ensure file exists (Multer should populate req.file)
     if (!req.file) {
       throw new AppError(
         'No file uploaded or file processing failed by multer.',
@@ -32,7 +29,6 @@ export const uploadOverrideStudents = asyncHandler(
       );
     }
 
-    // Validate file against schema
     const validationResult =
       overrideStudentsFileUploadSchema.shape.file.safeParse(req.file);
 
@@ -44,7 +40,6 @@ export const uploadOverrideStudents = asyncHandler(
       throw new AppError(`File validation failed: ${errorMessage}`, 400);
     }
 
-    // Get uploaded by from authenticated user (assuming it's available in req.user)
     const uploadedBy = (req as any).user?.id || 'unknown-admin';
 
     const result = await overrideStudentsService.uploadOverrideStudents(
@@ -65,19 +60,11 @@ export const uploadOverrideStudents = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves all override students for a feedback form with pagination.
- * @route GET /api/v1/feedback-forms/:id/override-students
- * @param {Request} req - Express Request object (expects form ID in params, pagination in query)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf)
- */
 export const getOverrideStudents = asyncHandler(
+  // Retrieves all override students for a feedback form with pagination.
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
-    // Validate query parameters
     const { page, limit } = getOverrideStudentsQuerySchema.parse(req.query);
 
     const result = await overrideStudentsService.getOverrideStudents(formId, {
@@ -96,22 +83,13 @@ export const getOverrideStudents = asyncHandler(
   }
 );
 
-/**
- * @description Updates an override student.
- * @route PATCH /api/v1/feedback-forms/:id/override-students/:studentId
- * @param {Request} req - Express Request object (expects form ID and student ID in params, update data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const updateOverrideStudent = asyncHandler(
+  // Updates an override student.
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
-    // Validate student ID parameter
     const { studentId } = overrideStudentIdParamSchema.parse(req.params);
 
-    // Validate update data
     const updateData = updateOverrideStudentSchema.parse(req.body);
 
     const updatedStudent = await overrideStudentsService.updateOverrideStudent(
@@ -130,19 +108,11 @@ export const updateOverrideStudent = asyncHandler(
   }
 );
 
-/**
- * @description Deletes an override student (soft delete).
- * @route DELETE /api/v1/feedback-forms/:id/override-students/:studentId
- * @param {Request} req - Express Request object (expects form ID and student ID in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const deleteOverrideStudent = asyncHandler(
+  // Deletes an override student (soft delete).
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
-    // Validate student ID parameter
     const { studentId } = overrideStudentIdParamSchema.parse(req.params);
 
     await overrideStudentsService.deleteOverrideStudent(formId, studentId);
@@ -155,16 +125,9 @@ export const deleteOverrideStudent = asyncHandler(
   }
 );
 
-/**
- * @description Clears all override students for a feedback form.
- * @route DELETE /api/v1/feedback-forms/:id/override-students
- * @param {Request} req - Express Request object (expects form ID in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const clearOverrideStudents = asyncHandler(
+  // Clears all override students for a feedback form.
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
     const deletedCount =
@@ -180,16 +143,9 @@ export const clearOverrideStudents = asyncHandler(
   }
 );
 
-/**
- * @description Gets the count of override students for a feedback form.
- * @route GET /api/v1/feedback-forms/:id/override-students/count
- * @param {Request} req - Express Request object (expects form ID in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf)
- */
 export const getOverrideStudentsCount = asyncHandler(
+  // Gets the count of override students for a feedback form.
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
     const result = await overrideStudentsService.getOverrideStudents(formId, {
@@ -206,16 +162,9 @@ export const getOverrideStudentsCount = asyncHandler(
   }
 );
 
-/**
- * @description Gets all override students for a feedback form without pagination.
- * @route GET /api/v1/feedback-forms/:id/override-students/all
- * @param {Request} req - Express Request object (expects form ID in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf)
- */
 export const getAllOverrideStudents = asyncHandler(
+  // Gets all override students for a feedback form without pagination.
   async (req: Request, res: Response) => {
-    // Validate form ID parameter
     const { id: formId } = formIdParamSchema.parse(req.params);
 
     const students =

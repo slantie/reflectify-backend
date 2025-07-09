@@ -1,11 +1,12 @@
-// src/utils/validators/feedbackForm.validation.ts
+/**
+ * @file src/utils/validators/feedbackForm.validation.ts
+ * @description Zod schemas for validating feedback form related requests.
+ */
 
 import { z } from 'zod';
-import { FormStatus } from '@prisma/client'; // Import FormStatus enum from Prisma client
+import { FormStatus } from '@prisma/client';
 
-/**
- * @dev Zod schema for validating a single semester selection within form generation.
- */
+// Zod schema for validating a single semester selection within form generation.
 export const semesterSelectionSchema = z.object({
   id: z.string().uuid('Invalid semester ID format. Must be a UUID.'),
   divisions: z
@@ -13,9 +14,7 @@ export const semesterSelectionSchema = z.object({
     .min(1, 'At least one division is required for semester selection.'),
 });
 
-/**
- * @dev Zod schema for validating the request body for generating feedback forms.
- */
+// Zod schema for validating the request body for generating feedback forms.
 export const generateFormsSchema = z.object({
   departmentId: z
     .string()
@@ -25,17 +24,14 @@ export const generateFormsSchema = z.object({
     .min(1, 'At least one semester selection is required.'),
 });
 
-/**
- * @dev Zod schema for validating the creation of a new feedback question when adding to an existing form.
- * Note: 'formId' is derived from params, not directly in body.
- */
+// Zod schema for validating the creation of a new feedback question when adding to an existing form.
 export const addQuestionToFormSchema = z.object({
   categoryId: z.string().uuid('Invalid category ID format. Must be a UUID.'),
   facultyId: z.string().uuid('Invalid faculty ID format. Must be a UUID.'),
   subjectId: z.string().uuid('Invalid subject ID format. Must be a UUID.'),
-  batch: z.string().optional().default('None'), // Matches schema default
+  batch: z.string().optional().default('None'),
   text: z.string().min(1, 'Question text is required.'),
-  type: z.string().min(1, 'Question type is required.'), // Assuming 'type' is a string, e.g., "TEXT", "RATING", "MCQ"
+  type: z.string().min(1, 'Question type is required.'),
   isRequired: z.boolean().optional().default(true),
   displayOrder: z
     .number()
@@ -43,10 +39,7 @@ export const addQuestionToFormSchema = z.object({
     .min(0, 'Display order must be a non-negative integer.'),
 });
 
-/**
- * @dev Zod schema for validating the update of an existing feedback form.
- * All fields are optional, allowing for partial updates.
- */
+// Zod schema for validating the update of an existing feedback form.
 export const updateFormSchema = z
   .object({
     title: z.string().min(1, 'Form title cannot be empty.').optional(),
@@ -63,7 +56,7 @@ export const updateFormSchema = z
         'Invalid end date format. Must be a valid ISO 8601 date string.'
       )
       .optional(),
-    isDeleted: z.boolean().optional(), // Allow updating soft delete status
+    isDeleted: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message:
@@ -71,9 +64,7 @@ export const updateFormSchema = z
     path: [],
   });
 
-/**
- * @dev Zod schema for validating the request body for updating a single form's status.
- */
+// Zod schema for validating the request body for updating a single form's status.
 export const updateFormStatusSchema = z
   .object({
     status: z.nativeEnum(FormStatus, { message: 'Invalid form status.' }),
@@ -92,8 +83,7 @@ export const updateFormStatusSchema = z
   })
   .refine(
     (_data) => {
-      // If status is ACTIVE, startDate and endDate might be required or validated for future dates
-      // This is a basic example, complex date validation should be handled in service
+      // Basic date validation, more complex logic handled in service.
       return true;
     },
     {
@@ -102,9 +92,7 @@ export const updateFormStatusSchema = z
     }
   );
 
-/**
- * @dev Zod schema for validating the request body for bulk updating form statuses.
- */
+// Zod schema for validating the request body for bulk updating form statuses.
 export const bulkUpdateFormStatusSchema = z.object({
   formIds: z
     .array(z.string().uuid('Invalid form ID in list. Must be a UUID.'))
@@ -122,17 +110,12 @@ export const bulkUpdateFormStatusSchema = z.object({
     .optional(),
 });
 
-/**
- * @dev Zod schema for validating ID parameters in requests (e.g., for /:id).
- * Ensures the ID is a valid UUID format.
- */
+// Zod schema for validating ID parameters in requests.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });
 
-/**
- * @dev Zod schema for validating access token parameter in requests (e.g., /access/:token).
- */
+// Zod schema for validating access token parameter in requests.
 export const accessTokenParamSchema = z.object({
   token: z.string().min(1, 'Access token is required.'),
 });

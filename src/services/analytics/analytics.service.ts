@@ -5,10 +5,9 @@
  */
 
 import { Prisma, LectureType } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
-// Define output types directly within the service file
 interface OverallSemesterRatingOutput {
   semesterId: string;
   averageRating: number;
@@ -43,8 +42,8 @@ interface HighImpactFeedbackAreaOutput {
   category: string;
   faculty: string;
   subject: string;
-  lowRatingCount: number; // This will now correctly represent responses below threshold
-  averageRating: number; // This will be the average of all responses for the question
+  lowRatingCount: number;
+  averageRating: number;
 }
 
 interface SemesterTrendAnalysisOutput {
@@ -52,7 +51,8 @@ interface SemesterTrendAnalysisOutput {
   subject: string;
   averageRating: number;
   responseCount: number;
-  // academicYear?: string; // Optional, if you decide to include it from the original code
+  academicYearId?: string;
+  academicYear?: string;
 }
 
 interface AnnualPerformanceTrendOutput {
@@ -75,12 +75,11 @@ interface LabLectureComparisonOutput {
   formCount: number;
 }
 
-// Output types for faculty performance data
 interface FacultyPerformanceYearDataOutput {
   Faculty_name: string;
   academic_year: string;
   total_average: number | null;
-  [key: string]: string | number | null; // For semester 1, semester 2, etc.
+  [key: string]: string | number | null;
 }
 
 interface AllFacultyPerformanceDataOutput {
@@ -88,7 +87,6 @@ interface AllFacultyPerformanceDataOutput {
   faculties: Array<FacultyPerformanceYearDataOutput & { facultyId: string }>;
 }
 
-// NEW: Output type for getSemesterDivisions
 interface SemesterDivisionDetails {
   divisionId: string;
   divisionName: string;
@@ -106,7 +104,6 @@ interface SemesterDivisionResponseOutput {
   divisions: SemesterDivisionDetails[];
 }
 
-// NEW: Filter Dictionary Output types
 interface FilterDictionaryOutput {
   academicYears: Array<{
     id: string;
@@ -137,7 +134,6 @@ interface FilterDictionaryOutput {
   }>;
 }
 
-// NEW: Complete Analytics Data Output
 interface CompleteAnalyticsDataOutput {
   semesters: Array<{
     id: string;
@@ -180,41 +176,31 @@ interface CompleteAnalyticsDataOutput {
   }>;
   feedbackSnapshots: Array<{
     id: string;
-    // Academic Year
     academicYearId: string;
     academicYearString: string;
-    // Department
     departmentId: string;
     departmentName: string;
     departmentAbbreviation: string;
-    // Semester
     semesterId: string;
     semesterNumber: number;
-    // Division
     divisionId: string;
     divisionName: string;
-    // Subject
     subjectId: string;
     subjectName: string;
     subjectAbbreviation: string;
     subjectCode: string;
-    // Faculty
     facultyId: string;
     facultyName: string;
     facultyAbbreviation: string;
-    // Student
     studentId: string | null;
     studentEnrollmentNumber: string;
-    // Form
     formId: string;
     formStatus: string;
-    // Question
     questionId: string;
     questionType: string;
     questionCategoryId: string;
     questionCategoryName: string;
     questionBatch: string;
-    // Response
     responseValue: any;
     batch: string;
     submittedAt: string;
@@ -223,13 +209,7 @@ interface CompleteAnalyticsDataOutput {
 }
 
 class AnalyticsService {
-  /**
-   * Helper function to group an array of objects by a specified key.
-   * @param array - The array to group.
-   * @param key - A function that returns the key for each item.
-   * @returns A record where keys are group keys and values are arrays of items.
-   * @private
-   */
+  // Helper function to group an array of objects by a specified key.
   private groupBy<T>(
     array: T[],
     key: (item: T) => string
@@ -247,24 +227,15 @@ class AnalyticsService {
     );
   }
 
-  /**
-   * Helper function to parse raw response value into a numeric score.
-   * Handles cases where the value might be a string number, a JSON string with a 'score' field,
-   * or a direct number/object with a 'score' field.
-   * @param rawResponseValue - The raw value from the database (JSON field).
-   * @returns The numeric score, or null if parsing fails.
-   * @private
-   */
+  // Helper function to parse raw response value into a numeric score.
   private parseResponseValueToScore(rawResponseValue: any): number | null {
     let score: number | null = null;
 
     if (typeof rawResponseValue === 'string') {
-      // Case 1: The JSON value is a direct string number (e.g., "6")
       const parsedFloat = parseFloat(rawResponseValue);
       if (!isNaN(parsedFloat)) {
         score = parsedFloat;
       } else {
-        // If it's a string but not a direct number, try parsing as JSON object/number
         try {
           const parsedJson = JSON.parse(rawResponseValue);
           if (
@@ -281,34 +252,21 @@ class AnalyticsService {
           // console.warn(`Could not parse rawResponseValue as JSON string: ${rawResponseValue}`);
         }
       }
-    }
-    // Case 2: The JSON value is already a JS object (e.g., { "score": 5 })
-    else if (
+    } else if (
       typeof rawResponseValue === 'object' &&
       rawResponseValue !== null &&
       'score' in rawResponseValue &&
       typeof (rawResponseValue as any).score === 'number'
     ) {
       score = (rawResponseValue as any).score;
-    }
-    // Case 3: The JSON value is already a direct number
-    else if (typeof rawResponseValue === 'number') {
+    } else if (typeof rawResponseValue === 'number') {
       score = rawResponseValue;
     }
 
     return typeof score === 'number' && !isNaN(score) ? score : null;
   }
 
-  /**
-   * Calculates the overall average rating for a specific semester,
-   * with optional filtering by division and student batch.
-   * Filters out soft-deleted records at all levels.
-   * @param semesterId - The ID of the semester.
-   * @param divisionId - Optional ID of the division to filter by.
-   * @param batch - Optional student batch to filter by.
-   * @returns The overall average rating and total responses.
-   * @throws AppError if no responses are found.
-   */
+  // Calculates the overall average rating for a specific semester.
   public async getOverallSemesterRating(
     semesterId: string,
     divisionId?: string,
@@ -316,22 +274,22 @@ class AnalyticsService {
   ): Promise<OverallSemesterRatingOutput> {
     try {
       const whereClause: Prisma.StudentResponseWhereInput = {
-        isDeleted: false, // Filter out soft-deleted student responses
+        isDeleted: false,
         feedbackForm: {
-          isDeleted: false, // Ensure form is not soft-deleted
+          isDeleted: false,
           subjectAllocation: {
-            isDeleted: false, // Ensure subject allocation is not soft-deleted
+            isDeleted: false,
             semesterId,
-            semester: { isDeleted: false }, // Ensure semester is not soft-deleted
+            semester: { isDeleted: false },
           },
           division: {
-            isDeleted: false, // Ensure division is not soft-deleted
-            ...(divisionId && { id: divisionId }), // Apply divisionId filter if present
+            isDeleted: false,
+            ...(divisionId && { id: divisionId }),
           },
         },
         student: {
-          isDeleted: false, // Ensure student is not soft-deleted
-          ...(batch && { batch }), // Apply batch filter if present
+          isDeleted: false,
+          ...(batch && { batch }),
         },
       };
 
@@ -349,10 +307,9 @@ class AnalyticsService {
         );
       }
 
-      // Parse values to numbers and filter out non-numeric results
       const numericResponses = responses
-        .map((r) => parseFloat(String(r.responseValue))) // Convert to string first, then parse
-        .filter((value) => !isNaN(value)); // Filter out NaN values
+        .map((r) => parseFloat(String(r.responseValue)))
+        .filter((value) => !isNaN(value));
 
       if (numericResponses.length === 0) {
         throw new AppError('No numeric responses found for calculation.', 404);
@@ -372,33 +329,29 @@ class AnalyticsService {
         'Error in AnalyticsService.getOverallSemesterRating:',
         error
       );
-      throw error; // Re-throw AppError or wrap other errors
+      throw error;
     }
   }
 
-  /**
-   * Retrieves a list of semesters that have associated feedback responses.
-   * Filters out soft-deleted records.
-   * @returns An array of semesters with their academic year.
-   */
+  // Retrieves a list of semesters that have associated feedback responses.
   public async getSemestersWithResponses(
     academicYearId?: string,
     departmentId?: string
   ): Promise<SemesterWithResponsesOutput[]> {
     try {
       const whereClause: any = {
-        isDeleted: false, // Filter out soft-deleted semesters
-        academicYear: { isDeleted: false }, // Ensure academic year is not soft-deleted
-        department: { isDeleted: false }, // Ensure department is not soft-deleted
+        isDeleted: false,
+        academicYear: { isDeleted: false },
+        department: { isDeleted: false },
         allocations: {
           some: {
-            isDeleted: false, // Ensure subject allocation is not soft-deleted
+            isDeleted: false,
             feedbackForms: {
               some: {
-                isDeleted: false, // Ensure feedback form is not soft-deleted
+                isDeleted: false,
                 responses: {
                   some: {
-                    isDeleted: false, // Ensure student response is not soft-deleted
+                    isDeleted: false,
                   },
                 },
               },
@@ -407,7 +360,6 @@ class AnalyticsService {
         },
       };
 
-      // Apply optional filters
       if (academicYearId) {
         whereClause.academicYearId = academicYearId;
       }
@@ -463,7 +415,6 @@ class AnalyticsService {
         },
       });
 
-      // Calculate response counts for each semester
       const result: SemesterWithResponsesOutput[] = semestersWithResponses.map(
         (semester) => {
           const responseCount = semester.allocations.reduce(
@@ -499,20 +450,12 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Gets subject-wise ratings split by lecture and lab types for a specific semester.
-   * Uses feedbackSnapshot for improved performance and correct data aggregation.
-   * @param semesterId - The ID of the semester (used to filter by semesterNumber).
-   * @param academicYearId - Optional academic year ID for additional filtering.
-   * @returns An array of subject ratings grouped by lecture/lab type.
-   * @throws AppError if no feedback data is found.
-   */
+  // Gets subject-wise ratings split by lecture and lab types for a specific semester.
   public async getSubjectWiseLectureLabRating(
     semesterId: string,
     academicYearId?: string
   ): Promise<SubjectWiseRatingOutput[]> {
     try {
-      // First, get the semester number from the semester ID
       const semester = await prisma.semester.findUnique({
         where: { id: semesterId, isDeleted: false },
         select: { semesterNumber: true, academicYearId: true },
@@ -527,7 +470,6 @@ class AnalyticsService {
         formDeleted: false,
         semesterNumber: semester.semesterNumber,
         ...(academicYearId && { academicYearId }),
-        // If no academic year is specified, use the semester's academic year
         ...(!academicYearId && { academicYearId: semester.academicYearId }),
       };
 
@@ -548,9 +490,7 @@ class AnalyticsService {
         );
       }
 
-      // Group by subject and lecture type
       const groupedData = this.groupBy(snapshots, (snapshot) => {
-        // Determine lecture type based on batch or questionCategoryName
         let lectureType: LectureType;
         if (
           snapshot.questionCategoryName?.toLowerCase().includes('laboratory') ||
@@ -571,7 +511,6 @@ class AnalyticsService {
       ).map(([key, snapshots]) => {
         const [subjectName, lectureType] = key.split('|');
 
-        // Parse numeric responses
         const numericResponses = snapshots
           .map((snapshot) =>
             this.parseResponseValueToScore(snapshot.responseValue)
@@ -602,13 +541,7 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Identifies high-impact feedback areas (questions with significant low ratings) for a given semester.
-   * Filters out soft-deleted records.
-   * @param semesterId - The ID of the semester.
-   * @returns An array of high-impact feedback areas.
-   * @throws AppError if no significant low-rated areas are found.
-   */
+  // Identifies high-impact feedback areas (questions with significant low ratings) for a given semester.
   public async getHighImpactFeedbackAreas(
     semesterId: string
   ): Promise<HighImpactFeedbackAreaOutput[]> {
@@ -618,26 +551,26 @@ class AnalyticsService {
 
       const questionsWithResponses = await prisma.feedbackQuestion.findMany({
         where: {
-          isDeleted: false, // Filter out soft-deleted questions
+          isDeleted: false,
           form: {
-            isDeleted: false, // Ensure form is not soft-deleted
+            isDeleted: false,
             subjectAllocation: {
-              isDeleted: false, // Ensure subject allocation is not soft-deleted
+              isDeleted: false,
               semesterId,
-              semester: { isDeleted: false }, // Ensure semester is not soft-deleted
+              semester: { isDeleted: false },
             },
           },
         },
         include: {
           responses: {
             where: {
-              isDeleted: false, // Filter out soft-deleted responses
+              isDeleted: false,
             },
-            select: { responseValue: true }, // Only need the value for calculation
+            select: { responseValue: true },
           },
-          category: true, // Include the entire category object
-          faculty: true, // Include the entire faculty object
-          subject: true, // Include the entire subject object
+          category: true,
+          faculty: true,
+          subject: true,
         },
       });
 
@@ -664,8 +597,8 @@ class AnalyticsService {
             category: question.category?.categoryName || 'N/A',
             faculty: question.faculty?.name || 'N/A',
             subject: question.subject?.name || 'N/A',
-            lowRatingCount: lowRatedResponses.length, // Correctly reflects count below threshold
-            averageRating: Number(averageRating.toFixed(2)), // Average of all valid responses for the question
+            lowRatingCount: lowRatedResponses.length,
+            averageRating: Number(averageRating.toFixed(2)),
           });
         }
       }
@@ -684,14 +617,7 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Analyzes performance trends across semesters for subjects.
-   * Uses feedbackSnapshot for improved performance and correct data aggregation.
-   * @param subjectId - Optional subject ID to filter trends for a specific subject.
-   * @param academicYearId - Optional academic year ID to limit trends to a specific year.
-   * @returns An array of trend data grouped by semester and subject.
-   * @throws AppError if no trend data is available.
-   */
+  // Analyzes performance trends across semesters for subjects.
   public async getSemesterTrendAnalysis(
     subjectId?: string,
     academicYearId?: string
@@ -726,7 +652,6 @@ class AnalyticsService {
         );
       }
 
-      // Group by semester and subject
       const groupedData = this.groupBy(
         snapshots,
         (snapshot) => `${snapshot.semesterNumber}|${snapshot.subjectName}`
@@ -737,7 +662,6 @@ class AnalyticsService {
       ).map(([key, snapshots]) => {
         const [semesterNumber, subjectName] = key.split('|');
 
-        // Parse numeric responses
         const numericResponses = snapshots
           .map((snapshot) =>
             this.parseResponseValueToScore(snapshot.responseValue)
@@ -758,7 +682,6 @@ class AnalyticsService {
         };
       });
 
-      // Sort by semester then by subject for consistent ordering
       return trends.sort((a, b) => {
         if (a.semester !== b.semester) {
           return a.semester - b.semester;
@@ -774,19 +697,14 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Retrieves annual performance trends based on aggregated feedback analytics.
-   * Filters out soft-deleted analytics records.
-   * @returns An array of annual performance trend data.
-   * @throws AppError if no annual performance data is available.
-   */
+  // Retrieves annual performance trends based on aggregated feedback analytics.
   public async getAnnualPerformanceTrend(): Promise<
     AnnualPerformanceTrendOutput[]
   > {
     try {
       const annualTrends = await prisma.feedbackAnalytics.groupBy({
-        by: ['calculatedAt'], // Group by the timestamp of calculation
-        where: { isDeleted: false }, // Filter out soft-deleted analytics
+        by: ['calculatedAt'],
+        where: { isDeleted: false },
         _avg: {
           averageRating: true,
           completionRate: true,
@@ -814,10 +732,8 @@ class AnalyticsService {
         'Error in AnalyticsService.getAnnualPerformanceTrend:',
         error
       );
-      // Log the full error object for better debugging
       console.error('Full error details:', JSON.stringify(error, null, 2));
 
-      // Provide a more specific error message if it's a PrismaClientKnownRequestError
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         throw new AppError(
           `Database error during annual trend analysis: ${error.message} (Code: ${error.code})`,
@@ -828,37 +744,31 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Compares average ratings across different divisions and batches for a given semester.
-   * Filters out soft-deleted records.
-   * @param semesterId - The ID of the semester.
-   * @returns An array of comparison data.
-   * @throws AppError if no comparison data is available.
-   */
+  // Compares average ratings across different divisions and batches for a given semester.
   public async getDivisionBatchComparisons(
     semesterId: string
   ): Promise<DivisionBatchComparisonOutput[]> {
     try {
       const forms = await prisma.feedbackForm.findMany({
         where: {
-          isDeleted: false, // Filter out soft-deleted forms
+          isDeleted: false,
           subjectAllocation: {
-            isDeleted: false, // Ensure subject allocation is not soft-deleted
+            isDeleted: false,
             semesterId,
-            semester: { isDeleted: false }, // Ensure semester is not soft-deleted
+            semester: { isDeleted: false },
           },
-          division: { isDeleted: false }, // Ensure division is not soft-deleted
+          division: { isDeleted: false },
         },
         include: {
           division: { select: { divisionName: true } },
           questions: {
-            where: { isDeleted: false }, // Filter out soft-deleted questions
+            where: { isDeleted: false },
             include: {
               responses: {
-                where: { isDeleted: false }, // Filter out soft-deleted responses
+                where: { isDeleted: false },
                 select: {
                   responseValue: true,
-                  student: { select: { batch: true, isDeleted: true } }, // Include isDeleted for filtering
+                  student: { select: { batch: true, isDeleted: true } },
                 },
               },
             },
@@ -875,9 +785,7 @@ class AnalyticsService {
 
       const comparisonData: DivisionBatchComparisonOutput[] = [];
 
-      // Process each form directly using the snapshots approach instead of relationships
       for (const form of forms) {
-        // Get division info
         const division = await prisma.division.findUnique({
           where: { id: form.divisionId },
           select: { divisionName: true },
@@ -885,7 +793,6 @@ class AnalyticsService {
 
         if (!division) continue;
 
-        // Get responses for this form
         const responses = await prisma.studentResponse.findMany({
           where: {
             feedbackFormId: form.id,
@@ -902,12 +809,10 @@ class AnalyticsService {
           },
         });
 
-        // Filter out responses from soft-deleted students
         const activeResponses = responses.filter(
           (r) => r.student && !r.student.isDeleted
         );
 
-        // Group by batch
         const batchGroups: Record<string, typeof activeResponses> = {};
         for (const response of activeResponses) {
           const batch = response.student?.batch || 'Unknown';
@@ -917,7 +822,6 @@ class AnalyticsService {
           batchGroups[batch].push(response);
         }
 
-        // Process each batch group
         Object.entries(batchGroups).forEach(([batch, batchResponses]) => {
           const numericBatchResponses = batchResponses
             .map((r) => parseFloat(String(r.responseValue)))
@@ -948,25 +852,18 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Compares average ratings between different lecture types (e.g., LECTURE, LAB) for a given semester.
-   * Filters out soft-deleted records.
-   * @param semesterId - The ID of the semester.
-   * @returns An array of comparison data by lecture type.
-   * @throws AppError if no comparison data is available.
-   */
+  // Compares average ratings between different lecture types (e.g., LECTURE, LAB) for a given semester.
   public async getLabLectureComparison(
     semesterId: string
   ): Promise<LabLectureComparisonOutput[]> {
     try {
-      // Get forms and their allocation info separately
       const forms = await prisma.feedbackForm.findMany({
         where: {
-          isDeleted: false, // Filter out soft-deleted forms
+          isDeleted: false,
           subjectAllocation: {
-            isDeleted: false, // Ensure subject allocation is not soft-deleted
+            isDeleted: false,
             semesterId,
-            semester: { isDeleted: false }, // Ensure semester is not soft-deleted
+            semester: { isDeleted: false },
           },
         },
         select: {
@@ -975,32 +872,6 @@ class AnalyticsService {
         },
       });
 
-      // For each form, get the allocation and responses separately
-      const formsWithData = await Promise.all(
-        forms.map(async (form) => {
-          // Get the subject allocation with lecture type
-          const allocation = await prisma.subjectAllocation.findUnique({
-            where: { id: form.subjectAllocationId },
-            select: { lectureType: true },
-          });
-
-          // Get responses for this form
-          const responses = await prisma.studentResponse.findMany({
-            where: {
-              feedbackFormId: form.id,
-              isDeleted: false,
-            },
-            select: { responseValue: true },
-          });
-
-          return {
-            ...form,
-            lectureType: allocation?.lectureType || 'LECTURE',
-            responses: responses,
-          };
-        })
-      );
-
       if (!forms.length) {
         throw new AppError(
           'No comparison data available for the given semester.',
@@ -1008,14 +879,12 @@ class AnalyticsService {
         );
       }
 
-      // Group forms by lecture type
       const lectureTypeData: Record<
         string,
         { responses: any[]; forms: any[] }
       > = {};
 
       for (const form of forms) {
-        // Get allocation to determine lecture type
         const allocation = await prisma.subjectAllocation.findUnique({
           where: { id: form.subjectAllocationId },
           select: { lectureType: true },
@@ -1027,10 +896,8 @@ class AnalyticsService {
           lectureTypeData[lectureType] = { responses: [], forms: [] };
         }
 
-        // Add form to the group
         lectureTypeData[lectureType].forms.push(form);
 
-        // Get responses for this form
         const responses = await prisma.studentResponse.findMany({
           where: {
             feedbackFormId: form.id,
@@ -1039,11 +906,9 @@ class AnalyticsService {
           select: { responseValue: true },
         });
 
-        // Add all responses to the group
         lectureTypeData[lectureType].responses.push(...responses);
       }
 
-      // Process each lecture type group
       const comparison: LabLectureComparisonOutput[] = Object.entries(
         lectureTypeData
       ).map(([lectureType, data]) => {
@@ -1058,7 +923,7 @@ class AnalyticsService {
             : 0;
 
         return {
-          lectureType: lectureType as LectureType, // Cast back to LectureType enum
+          lectureType: lectureType as LectureType,
           averageRating: Number(avgRating.toFixed(2)),
           responseCount: data.responses.length,
           formCount: data.forms.length,
@@ -1075,14 +940,7 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Retrieves performance data for a single faculty member across semesters for a given academic year.
-   * Filters out soft-deleted records.
-   * @param academicYearId - The ID of the academic year.
-   * @param facultyId - The ID of the faculty member.
-   * @returns Formatted faculty performance data.
-   * @throws AppError if no feedback data is found for the faculty and academic year.
-   */
+  // Retrieves performance data for a single faculty member across semesters for a given academic year.
   public async getFacultyPerformanceYearData(
     academicYearId: string,
     facultyId: string
@@ -1093,8 +951,8 @@ class AnalyticsService {
           facultyId: facultyId,
           academicYearId: academicYearId,
           questionType: 'rating',
-          formDeleted: false, // Assuming this means the parent form is not soft-deleted
-          isDeleted: false, // Ensure the snapshot itself is not soft-deleted
+          formDeleted: false,
+          isDeleted: false,
         },
         select: {
           id: true,
@@ -1108,10 +966,7 @@ class AnalyticsService {
         },
       });
 
-      // If no feedback snapshots are found, return a default structure
       if (feedbackSnapshots.length === 0) {
-        // Attempt to get faculty name and academic year string even if no snapshots
-        // Fetching directly from Faculty and AcademicYear models to ensure they are active
         const faculty = await prisma.faculty.findUnique({
           where: { id: facultyId, isDeleted: false },
           select: { name: true },
@@ -1128,7 +983,7 @@ class AnalyticsService {
         const result: FacultyPerformanceYearDataOutput = {
           Faculty_name: defaultFacultyName,
           academic_year: defaultAcademicYear,
-          total_average: null, // Initialize total_average here
+          total_average: null,
         };
         for (let i = 1; i <= 8; i++) {
           result[`semester ${i}`] = null;
@@ -1147,7 +1002,7 @@ class AnalyticsService {
 
       for (const snapshot of feedbackSnapshots) {
         const semester = snapshot.semesterNumber;
-        const score = this.parseResponseValueToScore(snapshot.responseValue); // Use the helper
+        const score = this.parseResponseValueToScore(snapshot.responseValue);
 
         if (typeof score === 'number' && !isNaN(score)) {
           if (!semesterScores[semester]) {
@@ -1169,7 +1024,7 @@ class AnalyticsService {
       const result: FacultyPerformanceYearDataOutput = {
         Faculty_name: facultyName,
         academic_year: academicYear,
-        total_average: null, // Initialize total_average here
+        total_average: null,
       };
 
       for (let i = 1; i <= maxSemesterNumber; i++) {
@@ -1195,13 +1050,7 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Retrieves performance data for all faculty members for a given academic year.
-   * Filters out soft-deleted records.
-   * @param academicYearId - The ID of the academic year.
-   * @returns Formatted performance data for all faculties.
-   * @throws AppError if an unexpected error occurs.
-   */
+  // Retrieves performance data for all faculty members for a given academic year.
   public async getAllFacultyPerformanceData(
     academicYearId: string
   ): Promise<AllFacultyPerformanceDataOutput> {
@@ -1210,8 +1059,8 @@ class AnalyticsService {
         where: {
           academicYearId: academicYearId,
           questionType: 'rating',
-          formDeleted: false, // Assuming this means the parent form is not soft-deleted
-          isDeleted: false, // Ensure the snapshot itself is not soft-deleted
+          formDeleted: false,
+          isDeleted: false,
         },
         select: {
           id: true,
@@ -1221,15 +1070,10 @@ class AnalyticsService {
           responseValue: true,
           academicYearString: true,
         },
-        orderBy: [
-          { facultyId: 'asc' }, // Order by faculty for easier grouping
-          { semesterNumber: 'asc' },
-        ],
+        orderBy: [{ facultyId: 'asc' }, { semesterNumber: 'asc' }],
       });
 
-      // Handle case where no feedback is found for the academic year
       if (feedbackSnapshots.length === 0) {
-        // Attempt to get academic year string even if no snapshots
         const academicYearRecord = await prisma.academicYear.findUnique({
           where: { id: academicYearId, isDeleted: false },
           select: { yearString: true },
@@ -1239,7 +1083,7 @@ class AnalyticsService {
 
         return {
           academic_year: defaultAcademicYear,
-          faculties: [], // Return an empty array of faculties
+          faculties: [],
         };
       }
 
@@ -1253,14 +1097,13 @@ class AnalyticsService {
       }
 
       const aggregatedData: { [facultyId: string]: FacultyAggregatedData } = {};
-      const maxSemesterNumber = 8; // Define the maximum possible semester number
+      const maxSemesterNumber = 8;
 
       for (const snapshot of feedbackSnapshots) {
         const facultyId = snapshot.facultyId;
         const semester = snapshot.semesterNumber;
-        const score = this.parseResponseValueToScore(snapshot.responseValue); // Use the helper
+        const score = this.parseResponseValueToScore(snapshot.responseValue);
 
-        // Initialize faculty data if not already present
         if (!aggregatedData[facultyId]) {
           aggregatedData[facultyId] = {
             facultyId: facultyId,
@@ -1292,7 +1135,6 @@ class AnalyticsService {
         }
       }
 
-      // Calculate Averages and Format Final Result
       const finalResultFaculties: Array<
         FacultyPerformanceYearDataOutput & { facultyId: string }
       > = [];
@@ -1302,10 +1144,10 @@ class AnalyticsService {
         const facultyOutput: FacultyPerformanceYearDataOutput & {
           facultyId: string;
         } = {
-          facultyId: facultyData.facultyId, // Include facultyId for identification
+          facultyId: facultyData.facultyId,
           Faculty_name: facultyData.Faculty_name,
           academic_year: facultyData.academic_year,
-          total_average: null, // Initialize total_average here
+          total_average: null,
         };
 
         for (let i = 1; i <= maxSemesterNumber; i++) {
@@ -1331,7 +1173,7 @@ class AnalyticsService {
       }
 
       return {
-        academic_year: feedbackSnapshots[0].academicYearString, // Use the academic year from the first snapshot
+        academic_year: feedbackSnapshots[0].academicYearString,
         faculties: finalResultFaculties,
       };
     } catch (error: any) {
@@ -1343,16 +1185,12 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * @description Retrieves the total number of student responses.
-   * Filters out soft-deleted responses.
-   * @returns The total count of active student responses.
-   */
+  // Retrieves the total number of student responses.
   public async getTotalResponses(): Promise<number> {
     try {
       const totalResponses = await prisma.studentResponse.count({
         where: {
-          isDeleted: false, // Only count active responses
+          isDeleted: false,
         },
       });
       return totalResponses;
@@ -1362,21 +1200,15 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * @description Retrieves semesters and their divisions, including response counts for each division.
-   * Filters out soft-deleted records at all levels.
-   * @returns An array of semesters with their divisions and response counts.
-   * @throws AppError if an error occurs during data fetching.
-   */
+  // Retrieves semesters and their divisions, including response counts for each division.
   public async getSemesterDivisionsWithResponseCounts(): Promise<
     SemesterDivisionResponseOutput[]
   > {
     try {
-      // Get all non-deleted semesters
       const semesters = await prisma.semester.findMany({
         where: {
-          isDeleted: false, // Filter soft-deleted semesters
-          academicYear: { isDeleted: false }, // Ensure academic year is not soft-deleted
+          isDeleted: false,
+          academicYear: { isDeleted: false },
         },
         select: {
           id: true,
@@ -1390,9 +1222,7 @@ class AnalyticsService {
 
       const formattedResponse: SemesterDivisionResponseOutput[] = [];
 
-      // Process each semester individually
       for (const semester of semesters) {
-        // Get academic year info
         const academicYear = await prisma.academicYear.findUnique({
           where: { id: semester.academicYearId },
           select: {
@@ -1403,7 +1233,6 @@ class AnalyticsService {
 
         if (!academicYear) continue;
 
-        // Get divisions for this semester
         const divisions = await prisma.division.findMany({
           where: {
             isDeleted: false,
@@ -1418,9 +1247,7 @@ class AnalyticsService {
 
         const divisionsWithResponses: SemesterDivisionDetails[] = [];
 
-        // For each division, get response counts
         for (const division of divisions) {
-          // Count responses for this division
           const responseCount = await prisma.studentResponse.count({
             where: {
               isDeleted: false,
@@ -1444,7 +1271,6 @@ class AnalyticsService {
           }
         }
 
-        // Only include if there are divisions with responses
         if (divisionsWithResponses.length > 0) {
           formattedResponse.push({
             semesterId: semester.id,
@@ -1465,10 +1291,7 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Gets the filter dictionary with Academic Years -> Departments -> Subjects hierarchy
-   * @returns Hierarchical filter options for frontend dropdowns
-   */
+  // Gets the filter dictionary with Academic Years -> Departments -> Subjects hierarchy.
   public async getFilterDictionary(): Promise<FilterDictionaryOutput> {
     try {
       const academicYears = await prisma.academicYear.findMany({
@@ -1592,17 +1415,7 @@ class AnalyticsService {
     }
   }
 
-  /**
-   * Gets complete analytics data based on filters
-   * @param academicYearId - Optional academic year filter
-   * @param departmentId - Optional department filter
-   * @param subjectId - Optional subject filter
-   * @param semesterId - Optional semester filter
-   * @param divisionId - Optional division filter
-   * @param lectureType - Optional lecture type filter (LECTURE or LAB)
-   * @param includeDeleted - Whether to include soft-deleted records
-   * @returns Complete analytics data including semesters, subject ratings, and feedback snapshots
-   */
+  // Gets complete analytics data based on filters.
   public async getCompleteAnalyticsData(
     academicYearId?: string,
     departmentId?: string,
@@ -1613,12 +1426,10 @@ class AnalyticsService {
     includeDeleted = false
   ): Promise<CompleteAnalyticsDataOutput> {
     try {
-      // Build where clause for semesters
       const semesterWhereClause: Prisma.SemesterWhereInput = {
         isDeleted: includeDeleted ? undefined : false,
       };
 
-      // If not including deleted, ensure the related department is also not deleted
       if (!includeDeleted) {
         semesterWhereClause.department = {
           isDeleted: false,
@@ -1637,7 +1448,6 @@ class AnalyticsService {
         semesterWhereClause.id = semesterId;
       }
 
-      // Get filtered semesters with response counts
       const semesters = await prisma.semester.findMany({
         where: semesterWhereClause,
         include: {
@@ -1672,7 +1482,6 @@ class AnalyticsService {
         ],
       });
 
-      // Format semesters data with calculated response counts
       const formattedSemesters = semesters.map((semester) => {
         const responseCount = semester.allocations.reduce(
           (total, allocation) => {
@@ -1707,10 +1516,9 @@ class AnalyticsService {
         };
       });
 
-      // Build where clause for feedback snapshots
       const snapshotWhereClause: Prisma.FeedbackSnapshotWhereInput = {
         isDeleted: includeDeleted ? undefined : false,
-        formIsDeleted: includeDeleted ? undefined : false, // Updated field name
+        formIsDeleted: includeDeleted ? undefined : false,
       };
 
       if (academicYearId) {
@@ -1718,7 +1526,7 @@ class AnalyticsService {
       }
 
       if (departmentId) {
-        snapshotWhereClause.departmentId = departmentId; // Now we have direct departmentId field
+        snapshotWhereClause.departmentId = departmentId;
       }
 
       if (subjectId) {
@@ -1741,48 +1549,35 @@ class AnalyticsService {
         snapshotWhereClause.divisionId = divisionId;
       }
 
-      // Note: lectureType filtering is done after retrieving data since it's derived from questionCategoryName/batch
-
-      // Get feedback snapshots with complete data using new field names
       let feedbackSnapshots = await prisma.feedbackSnapshot.findMany({
         where: snapshotWhereClause,
         select: {
           id: true,
-          // Academic Year
           academicYearId: true,
           academicYearString: true,
-          // Department
           departmentId: true,
           departmentName: true,
           departmentAbbreviation: true,
-          // Semester
           semesterId: true,
           semesterNumber: true,
-          // Division
           divisionId: true,
           divisionName: true,
-          // Subject
           subjectId: true,
           subjectName: true,
           subjectAbbreviation: true,
           subjectCode: true,
-          // Faculty
           facultyId: true,
           facultyName: true,
           facultyAbbreviation: true,
-          // Student
           studentId: true,
           studentEnrollmentNumber: true,
-          // Form
           formId: true,
           formStatus: true,
-          // Question
           questionId: true,
           questionType: true,
           questionCategoryId: true,
           questionCategoryName: true,
           questionBatch: true,
-          // Response
           responseValue: true,
           batch: true,
           submittedAt: true,
@@ -1791,10 +1586,8 @@ class AnalyticsService {
         orderBy: [{ semesterNumber: 'asc' }, { subjectName: 'asc' }],
       });
 
-      // Filter by lecture type if specified
       if (lectureType) {
         feedbackSnapshots = feedbackSnapshots.filter((snapshot) => {
-          // Determine lecture type based on batch or questionCategoryName
           let snapshotLectureType: LectureType;
           if (
             snapshot.questionCategoryName
@@ -1816,9 +1609,7 @@ class AnalyticsService {
         });
       }
 
-      // Group snapshots by subject and lecture type for aggregation
       const groupedSnapshots = this.groupBy(feedbackSnapshots, (snapshot) => {
-        // Determine lecture type based on batch or questionCategoryName
         let lectureType: LectureType;
         if (
           snapshot.questionCategoryName?.toLowerCase().includes('laboratory') ||
@@ -1832,13 +1623,11 @@ class AnalyticsService {
         return `${snapshot.subjectName}|${lectureType}|${snapshot.semesterNumber}`;
       });
 
-      // Calculate subject ratings from grouped snapshots
       const subjectRatings = Object.entries(groupedSnapshots).map(
         ([key, snapshots]) => {
           const [subjectName, lectureType, semesterNumberStr] = key.split('|');
           const semesterNumber = parseInt(semesterNumberStr);
 
-          // Parse numeric responses
           const numericResponses = snapshots
             .map((snapshot) =>
               this.parseResponseValueToScore(snapshot.responseValue)
@@ -1851,7 +1640,6 @@ class AnalyticsService {
                 numericResponses.length
               : 0;
 
-          // Get additional info from first snapshot in group
           const firstSnapshot = snapshots[0];
 
           return {
@@ -1869,7 +1657,6 @@ class AnalyticsService {
         }
       );
 
-      // Group snapshots for semester trends (by subject and semester)
       const semesterTrendsGrouped = this.groupBy(
         feedbackSnapshots,
         (snapshot) => `${snapshot.subjectName}|${snapshot.semesterNumber}`
@@ -1880,7 +1667,6 @@ class AnalyticsService {
           const [subjectName, semesterNumberStr] = key.split('|');
           const semesterNumber = parseInt(semesterNumberStr);
 
-          // Parse numeric responses
           const numericResponses = snapshots
             .map((snapshot) =>
               this.parseResponseValueToScore(snapshot.responseValue)
@@ -1912,41 +1698,31 @@ class AnalyticsService {
         semesterTrends,
         feedbackSnapshots: feedbackSnapshots.map((snapshot) => ({
           id: snapshot.id,
-          // Academic Year
           academicYearId: snapshot.academicYearId,
           academicYearString: snapshot.academicYearString,
-          // Department
           departmentId: snapshot.departmentId,
           departmentName: snapshot.departmentName,
           departmentAbbreviation: snapshot.departmentAbbreviation,
-          // Semester
           semesterId: snapshot.semesterId,
           semesterNumber: snapshot.semesterNumber,
-          // Division
           divisionId: snapshot.divisionId,
           divisionName: snapshot.divisionName,
-          // Subject
           subjectId: snapshot.subjectId,
           subjectName: snapshot.subjectName,
           subjectAbbreviation: snapshot.subjectAbbreviation,
           subjectCode: snapshot.subjectCode,
-          // Faculty
           facultyId: snapshot.facultyId,
           facultyName: snapshot.facultyName,
           facultyAbbreviation: snapshot.facultyAbbreviation,
-          // Student
           studentId: snapshot.studentId || null,
           studentEnrollmentNumber: snapshot.studentEnrollmentNumber,
-          // Form
           formId: snapshot.formId,
           formStatus: snapshot.formStatus,
-          // Question
           questionId: snapshot.questionId,
           questionType: snapshot.questionType,
           questionCategoryId: snapshot.questionCategoryId,
           questionCategoryName: snapshot.questionCategoryName,
           questionBatch: snapshot.questionBatch,
-          // Response
           responseValue: snapshot.responseValue,
           batch: snapshot.batch,
           submittedAt: snapshot.submittedAt.toISOString(),

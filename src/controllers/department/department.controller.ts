@@ -16,19 +16,11 @@ import {
   idParamSchema,
 } from '../../utils/validators/department.validation';
 
-/**
- * @description Retrieves all active departments.
- * @route GET /api/v1/departments
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const getDepartments = asyncHandler(
+  // Retrieves all active departments.
   async (_req: Request, res: Response) => {
-    // Delegate to service layer
     const departments = await departmentService.getAllDepartments();
 
-    // Send success response
     res.status(200).json({
       status: 'success',
       results: departments.length,
@@ -39,22 +31,13 @@ export const getDepartments = asyncHandler(
   }
 );
 
-/**
- * @description Creates a new department.
- * @route POST /api/v1/departments
- * @param {Request} req - Express Request object (expects department data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const createDepartment = asyncHandler(
+  // Creates a new department.
   async (req: Request, res: Response) => {
-    // 1. Validate request body using Zod
     const validatedData = createDepartmentSchema.parse(req.body);
 
-    // 2. Delegate to service layer
     const department = await departmentService.createDepartment(validatedData);
 
-    // 3. Send success response
     res.status(201).json({
       status: 'success',
       message: 'Department created successfully.',
@@ -65,27 +48,17 @@ export const createDepartment = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves a single department by ID.
- * @route GET /api/v1/departments/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const getDepartmentById = asyncHandler(
+  // Retrieves a single department by ID.
   async (req: Request, res: Response) => {
-    // 1. Validate request parameters using Zod
     const { id } = idParamSchema.parse(req.params);
 
-    // 2. Delegate to service layer
     const department = await departmentService.getDepartmentById(id);
 
-    // 3. Handle not found scenario
     if (!department) {
       throw new AppError('Department not found.', 404);
     }
 
-    // 4. Send success response
     res.status(200).json({
       status: 'success',
       data: {
@@ -95,26 +68,17 @@ export const getDepartmentById = asyncHandler(
   }
 );
 
-/**
- * @description Updates an existing department.
- * @route PATCH /api/v1/departments/:id
- * @param {Request} req - Express Request object (expects id in params, partial department data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const updateDepartment = asyncHandler(
+  // Updates an existing department.
   async (req: Request, res: Response) => {
-    // 1. Validate request parameters and body using Zod
     const { id } = idParamSchema.parse(req.params);
     const validatedData = updateDepartmentSchema.parse(req.body);
 
-    // 2. Delegate to service layer
     const department = await departmentService.updateDepartment(
       id,
       validatedData
     );
 
-    // 3. Send success response
     res.status(200).json({
       status: 'success',
       message: 'Department updated successfully.',
@@ -125,46 +89,28 @@ export const updateDepartment = asyncHandler(
   }
 );
 
-/**
- * @description Soft deletes a department.
- * @route DELETE /api/v1/departments/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const softDeleteDepartment = asyncHandler(
+  // Soft deletes a department.
   async (req: Request, res: Response) => {
-    // 1. Validate request parameters using Zod
     const { id } = idParamSchema.parse(req.params);
 
-    // 2. Delegate to service layer (soft delete)
     await departmentService.softDeleteDepartment(id);
 
-    // 3. Send success response (204 No Content for successful deletion)
     res.status(204).json({
       status: 'success',
       message: 'Department soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );
 
-/**
- * @description Performs a batch creation of departments.
- * @route POST /api/v1/departments/batch
- * @param {Request} req - Express Request object (expects { departments: DepartmentDataInput[] } in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const batchCreateDepartments = asyncHandler(
+  // Performs a batch creation of departments.
   async (req: Request, res: Response) => {
-    // 1. Validate request body using Zod
     const { departments } = batchCreateDepartmentsSchema.parse(req.body);
 
-    // 2. Delegate to service layer
     const results = await departmentService.batchCreateDepartments(departments);
 
-    // 3. Send success response
     res.status(201).json({
       status: 'success',
       message: 'Departments batch created successfully.',

@@ -6,8 +6,6 @@
 
 import { PrismaClient } from '@prisma/client';
 
-// Declare a global variable for PrismaClient to prevent multiple instances in development
-// (especially with hot-reloading).
 declare global {
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
@@ -15,7 +13,6 @@ declare global {
 
 let prisma: PrismaClient;
 
-// Check if PrismaClient instance already exists in global scope (for development hot-reloading)
 if (process.env.NODE_ENV === 'production') {
   prisma = new PrismaClient();
 } else {

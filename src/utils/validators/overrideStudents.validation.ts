@@ -1,10 +1,11 @@
-// src/utils/validators/overrideStudents.validation.ts
+/**
+ * @file src/utils/validators/overrideStudents.validation.ts
+ * @description Zod schemas for validating override student related requests.
+ */
 
 import { z } from 'zod';
 
-/**
- * Schema for validating a single override student row from Excel
- */
+// Schema for validating a single override student row from Excel.
 export const overrideStudentExcelRowSchema = z.object({
   studentName: z
     .string()
@@ -54,9 +55,7 @@ export const overrideStudentExcelRowSchema = z.object({
     .transform((val) => val?.trim() || undefined),
 });
 
-/**
- * Schema for validating file upload request
- */
+// Schema for validating file upload request.
 export const overrideStudentsFileUploadSchema = z.object({
   file: z.object({
     fieldname: z.string(),
@@ -77,16 +76,12 @@ export const overrideStudentsFileUploadSchema = z.object({
   }),
 });
 
-/**
- * Schema for validating form ID parameter
- */
+// Schema for validating form ID parameter.
 export const formIdParamSchema = z.object({
   id: z.string().uuid('Invalid form ID format'),
 });
 
-/**
- * Schema for getting override students list
- */
+// Schema for getting override students list.
 export const getOverrideStudentsQuerySchema = z.object({
   page: z
     .string()
@@ -100,9 +95,7 @@ export const getOverrideStudentsQuerySchema = z.object({
     .refine((val) => val > 0 && val <= 100, 'Limit must be between 1 and 100'),
 });
 
-/**
- * Schema for updating an override student
- */
+// Schema for updating an override student.
 export const updateOverrideStudentSchema = z
   .object({
     name: z
@@ -158,9 +151,7 @@ export const updateOverrideStudentSchema = z
     message: 'At least one field must be provided for update',
   });
 
-/**
- * Schema for override student ID parameter
- */
+// Schema for override student ID parameter.
 export const overrideStudentIdParamSchema = z.object({
   studentId: z.string().uuid('Invalid override student ID format'),
 });

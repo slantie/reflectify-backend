@@ -4,17 +4,11 @@
  * including fetching aggregated statistics.
  */
 
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
 
 class DashboardService {
-  /**
-   * @description Fetches aggregated counts of various entities for the dashboard.
-   * Only counts records that are not soft-deleted.
-   * @returns {Promise<object>} An object containing counts of faculty, students,
-   * departments, divisions, subjects, semesters, academic years, and student responses.
-   * @throws {AppError} If there is a failure in fetching dashboard statistics.
-   */
+  // Fetches aggregated counts of various entities for the dashboard.
   public async getDashboardStats(): Promise<{
     responseCount: number;
     facultyCount: number;
@@ -30,8 +24,6 @@ class DashboardService {
     };
   }> {
     try {
-      // Use Promise.all to concurrently fetch counts for better performance.
-      // Apply isDeleted: false to ensure only active records are counted.
       const [
         responseCount,
         facultyCount,
@@ -77,14 +69,9 @@ class DashboardService {
     }
   }
 
-  /**
-   * @description Deletes all data from the database (for development only).
-   * This should only be used in development environments.
-   * @throws {AppError} If there is a failure in deleting database data.
-   */
+  // Deletes all data from the database (for development only).
   public async deleteAllData(): Promise<void> {
     try {
-      // Only allow this operation in development
       if (process.env.NODE_ENV === 'production') {
         throw new AppError(
           'Database deletion is not allowed in production.',
@@ -92,41 +79,23 @@ class DashboardService {
         );
       }
 
-      // Delete data in the correct order to avoid foreign key constraint issues
       await prisma.$transaction(async (tx) => {
-        // Delete leaf records first (no foreign key dependencies)
         await tx.studentResponse.deleteMany({});
         await tx.formAccess.deleteMany({});
         await tx.overrideStudent.deleteMany({});
         await tx.feedbackFormOverride.deleteMany({});
         await tx.feedbackQuestion.deleteMany({});
-
-        // Delete feedback forms (depends on subject allocations)
         await tx.feedbackForm.deleteMany({});
-
-        // Delete subject allocations (depends on faculty, subjects, etc.)
         await tx.subjectAllocation.deleteMany({});
-
-        // Delete faculty and students
         await tx.faculty.deleteMany({});
         await tx.student.deleteMany({});
-
-        // Delete subjects and question categories
         await tx.subject.deleteMany({});
         await tx.questionCategory.deleteMany({});
-
-        // Delete organizational structure (divisions depend on semesters)
         await tx.division.deleteMany({});
-
-        // Delete semester and academic year structure
         await tx.semester.deleteMany({});
         await tx.academicYear.deleteMany({});
-
-        // Delete remaining organizational structure
         await tx.department.deleteMany({});
         await tx.college.deleteMany({});
-
-        // Delete analytics and other support tables
         await tx.feedbackAnalytics.deleteMany({});
         await tx.oTP.deleteMany({});
       });

@@ -27,28 +27,28 @@ router.use(isAuthenticated);
 // Routes for individual division operations
 router
   .route('/')
-  .get(getDivisions) // GET /api/v1/divisions (can include query params: ?departmentId=<id>&semesterId=<id> for filtering)
+  .get(getDivisions)
   .post(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     createDivision
-  ); // POST /api/v1/divisions
+  );
 
 router
   .route('/:id')
-  .get(getDivisionById) // GET /api/v1/divisions/:id
+  .get(getDivisionById)
   .patch(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     updateDivision
-  ) // PATCH /api/v1/divisions/:id
+  )
   .delete(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     softDeleteDivision
-  ); // DELETE /api/v1/divisions/:id (soft delete)
+  );
 
 router.post(
   '/batch',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   batchCreateDivisions
-); // POST /api/v1/divisions/batch
+);
 
 export default router;

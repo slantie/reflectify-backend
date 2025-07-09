@@ -5,20 +5,13 @@
 
 import { Request, Response } from 'express';
 import { subjectDataUploadService } from '../../services/upload/subjectData.service';
-import asyncHandler from '../../utils/asyncHandler'; // Import asyncHandler
-import AppError from '../../utils/appError'; // Import AppError
-import { fileUploadSchema } from '../../utils/validators/upload.validation'; // Import file validation schema
+import asyncHandler from '../../utils/asyncHandler';
+import AppError from '../../utils/appError';
+import { fileUploadSchema } from '../../utils/validators/upload.validation';
 
-/**
- * @description Handles the upload and processing of subject data from an Excel file.
- * This function is designed to be used as an Express route handler AFTER Multer processes the file.
- * @param {Request} req - Express Request object (expects req.file to be populated by Multer)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const uploadSubjectData = asyncHandler(
+  // Handles the upload and processing of subject data from an Excel file.
   async (req: Request, res: Response) => {
-    // Validate the uploaded file using Zod
     const validationResult = fileUploadSchema.safeParse(req);
 
     if (!validationResult.success) {
@@ -28,7 +21,6 @@ export const uploadSubjectData = asyncHandler(
       throw new AppError(`File upload validation failed: ${errorMessage}`, 400);
     }
 
-    // Multer middleware should have already processed the file and populated req.file
     if (!req.file) {
       throw new AppError(
         'No file uploaded or file processing failed by multer.',
@@ -43,7 +35,7 @@ export const uploadSubjectData = asyncHandler(
     res.status(200).json({
       status: 'success',
       message: result.message,
-      rowsAffected: result.rowsAffected, // NEW: Added rowsAffected for consistency
+      rowsAffected: result.rowsAffected,
     });
   }
 );

@@ -5,10 +5,7 @@
 
 import { z } from 'zod';
 
-// Schema for ID parameter validation (common for many modules)
+// Schema for ID parameter validation.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });
-
-// No specific schema needed for the /stats endpoint as it doesn't take input.
-// This file is created for consistency and future extensibility.

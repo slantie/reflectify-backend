@@ -6,7 +6,7 @@
  */
 
 import FormData from 'form-data';
-import fetch from 'node-fetch'; // Using node-fetch for HTTP requests
+import fetch from 'node-fetch';
 import {
   SemesterTypeEnum,
   College,
@@ -17,22 +17,14 @@ import {
   Subject,
   Faculty,
 } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
 
-// Configuration constants
 const FLASK_SERVER =
   process.env.NODE_ENV === 'development'
     ? process.env.FLASK_DEV_SERVER
     : process.env.FLASK_PROD_SERVER;
-const COLLEGE_ID = 'LDRP-ITR'; // Hardcoded college ID
-
-/**
- * NOTE: Flask server should use SERVICE_API_KEY from environment to authenticate
- * with our backend service endpoints:
- * - GET /api/v1/service/faculties/abbreviations (with header: x-api-key: ${SERVICE_API_KEY})
- * - GET /api/v1/service/subjects/abbreviations (with header: x-api-key: ${SERVICE_API_KEY})
- */
+const COLLEGE_ID = 'LDRP-ITR';
 
 interface FacultyAssignment {
   designated_faculty: string;
@@ -82,13 +74,12 @@ interface AllocationBatchItem {
   subjectId: string;
   divisionId: string;
   semesterId: string;
-  lectureType: 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'PROJECT'; // Ensure all enum values are covered
+  lectureType: 'LECTURE' | 'LAB' | 'TUTORIAL' | 'SEMINAR' | 'PROJECT';
   batch: string;
   academicYearId: string;
   isDeleted: boolean;
 }
 
-// --- Canonical Department Mapping (re-used from other services, placed here for self-containment) ---
 const DEPARTMENT_MAPPING: Record<
   string,
   { name: string; abbreviation: string }
@@ -100,11 +91,9 @@ const DEPARTMENT_MAPPING: Record<
   CIVIL: { name: 'Civil Engineering', abbreviation: 'CIVIL' },
   AUTO: { name: 'Automobile Engineering', abbreviation: 'AUTO' },
   EE: { name: 'Electrical Engineering', abbreviation: 'EE' },
-  // Add any other departments here
 };
 
 class FacultyMatrixUploadService {
-  // Caches for the current request lifecycle
   private collegeCache = new Map<string, College>();
   private departmentCache = new Map<string, Department>();
   private academicYearCache = new Map<string, AcademicYear>();
@@ -113,15 +102,7 @@ class FacultyMatrixUploadService {
   private subjectCache = new Map<string, Subject>();
   private facultyCache = new Map<string, Faculty>();
 
-  /**
-   * @dev Fetches data from a given URL with retry logic.
-   * @param {string} url - The URL to fetch from.
-   * @param {object} options - Fetch options (method, headers, body).
-   * @param {number} maxRetries - Maximum number of retries.
-   * @returns {Promise<any>} The parsed JSON response.
-   * @throws {AppError} If the fetch fails after max retries or returns a non-OK status.
-   * @private
-   */
+  // Fetches data from a given URL with retry logic.
   private async fetchWithRetry(
     url: string,
     options: any,
@@ -134,10 +115,9 @@ class FacultyMatrixUploadService {
     for (let i = 0; i < maxRetries; i++) {
       try {
         const response = await fetch(url, options);
-        const text = await response.text(); // Read as text first to handle non-JSON errors
+        const text = await response.text();
 
         if (!response.ok) {
-          // Attempt to parse JSON error from Flask, or use plain text
           try {
             const errorJson = JSON.parse(text);
             throw new AppError(
@@ -152,35 +132,27 @@ class FacultyMatrixUploadService {
           }
         }
 
-        return JSON.parse(text); // Parse JSON if response is OK
+        return JSON.parse(text);
       } catch (error: unknown) {
-        const apiError = error as AppError; // Cast to AppError for consistent type
+        const apiError = error as AppError;
         console.error(`Fetch attempt ${i + 1} failed:`, apiError.message);
         if (i === maxRetries - 1) {
-          throw apiError; // Re-throw the AppError after max retries
+          throw apiError;
         }
-        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
       }
     }
-    throw new AppError('Failed to fetch data after multiple retries.', 500); // Should not be reached
+    throw new AppError('Failed to fetch data after multiple retries.', 500);
   }
 
-  /**
-   * @dev Finds the AcademicYear record in the database and caches it.
-   * It does NOT create the academic year if it doesn't exist.
-   * @param {string} yearString - The academic year string (e.g., "2024-2025").
-   * @returns {Promise<AcademicYear>} The AcademicYear record.
-   * @private
-   * @throws AppError if the academic year is not found.
-   */
+  // Finds the AcademicYear record in the database and caches it.
   private async findAcademicYear(yearString: string): Promise<AcademicYear> {
-    // Corrected type: Allow null or undefined from cache
     let academicYear: AcademicYear | null | undefined =
       this.academicYearCache.get(yearString);
     if (academicYear) return academicYear;
 
     academicYear = await prisma.academicYear.findFirst({
-      where: { yearString: yearString, isDeleted: false }, // Only consider non-soft-deleted academic years
+      where: { yearString: yearString, isDeleted: false },
     });
 
     if (!academicYear) {
@@ -194,16 +166,12 @@ class FacultyMatrixUploadService {
     return academicYear;
   }
 
-  /**
-   * @dev Ensures the College record exists in the database and caches it.
-   * @returns {Promise<College>} The College record.
-   * @private
-   */
+  // Ensures the College record exists in the database and caches it.
   private async ensureCollege(): Promise<College> {
     let college = this.collegeCache.get(COLLEGE_ID);
     if (!college) {
       college = await prisma.college.upsert({
-        where: { id: COLLEGE_ID, isDeleted: false }, // Filter out soft-deleted colleges
+        where: { id: COLLEGE_ID, isDeleted: false },
         create: {
           id: COLLEGE_ID,
           name: 'LDRP Institute of Technology and Research',
@@ -211,30 +179,21 @@ class FacultyMatrixUploadService {
           address: 'Sector 15, Gandhinagar, Gujarat',
           contactNumber: '+91-79-23241492',
           logo: 'ldrp-logo.png',
-          images: {}, // Assuming images is a JSON field or similar
-          isDeleted: false, // Ensure new college is not soft-deleted
+          images: {},
+          isDeleted: false,
         },
-        update: {}, // No specific update data needed if it already exists
+        update: {},
       });
       this.collegeCache.set(COLLEGE_ID, college);
     }
     return college;
   }
 
-  /**
-   * @dev Finds a Department record by its abbreviation or name within the college.
-   * Caches the result. Does not create the department if not found.
-   * @param deptAbbreviationInput The abbreviation or name of the department.
-   * @param collegeId The ID of the associated college.
-   * @returns {Promise<Department>} The Department record.
-   * @private
-   * @throws AppError if the department is not found.
-   */
+  // Finds a Department record by its abbreviation or name within the college.
   private async findDepartment(
     deptAbbreviationInput: string,
     collegeId: string
   ): Promise<Department> {
-    // Corrected type: Allow null or undefined from cache
     let department: Department | null | undefined = this.departmentCache.get(
       deptAbbreviationInput
     );
@@ -242,7 +201,6 @@ class FacultyMatrixUploadService {
 
     let canonicalDept: { name: string; abbreviation: string } | undefined;
 
-    // Attempt to find canonical department details from our mapping
     canonicalDept = DEPARTMENT_MAPPING[deptAbbreviationInput.toUpperCase()];
     if (!canonicalDept) {
       for (const key in DEPARTMENT_MAPPING) {
@@ -281,15 +239,7 @@ class FacultyMatrixUploadService {
     return department;
   }
 
-  /**
-   * @dev Upserts a Semester record. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param semesterNumber The semester number.
-   * @param academicYearId The ID of the associated academic year.
-   * @param semesterType The type of semester (ODD/EVEN).
-   * @returns {Promise<Semester>} The Semester record.
-   * @private
-   */
+  // Upserts a Semester record.
   private async upsertSemester(
     departmentId: string,
     semesterNumber: number,
@@ -308,7 +258,6 @@ class FacultyMatrixUploadService {
           academicYearId: academicYearId,
           semesterType: semesterType,
         },
-        isDeleted: false, // Only consider non-soft-deleted semesters
       },
       create: {
         departmentId: departmentId,
@@ -318,21 +267,14 @@ class FacultyMatrixUploadService {
         isDeleted: false,
       },
       update: {
-        semesterType: semesterType, // Ensure consistency
+        semesterType: semesterType,
       },
     });
     this.semesterCache.set(semesterKey, semester);
     return semester;
   }
 
-  /**
-   * @dev Upserts a Division record. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param divisionName The name of the division.
-   * @param semesterId The ID of the associated semester.
-   * @returns {Promise<Division>} The Division record.
-   * @private
-   */
+  // Upserts a Division record.
   private async upsertDivision(
     departmentId: string,
     divisionName: string,
@@ -349,35 +291,26 @@ class FacultyMatrixUploadService {
           divisionName: divisionName,
           semesterId: semesterId,
         },
-        isDeleted: false, // Only consider non-soft-deleted divisions
       },
       create: {
         departmentId: departmentId,
         semesterId: semesterId,
         divisionName: divisionName,
-        studentCount: 0, // Initial count
+        studentCount: 0,
         isDeleted: false,
       },
-      update: {}, // No specific update needed if found
+      update: {},
     });
     this.divisionCache.set(divisionKey, division);
     return division;
   }
 
-  /**
-   * @dev Finds a Subject record by departmentId and abbreviation. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param subjectAbbreviation The abbreviation of the subject.
-   * @returns {Promise<Subject>} The Subject record.
-   * @private
-   * @throws AppError if the subject is not found.
-   */
+  // Finds a Subject record by departmentId and abbreviation.
   private async findSubject(
     departmentId: string,
     subjectAbbreviation: string
   ): Promise<Subject> {
     const subjectKey = `${departmentId}_${subjectAbbreviation}`;
-    // Corrected type: Allow null or undefined from cache
     let subject: Subject | null | undefined = this.subjectCache.get(subjectKey);
     if (subject) return subject;
 
@@ -400,20 +333,12 @@ class FacultyMatrixUploadService {
     return subject;
   }
 
-  /**
-   * @dev Finds a Faculty record by departmentId and abbreviation. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param facultyAbbreviation The abbreviation of the faculty.
-   * @returns {Promise<Faculty>} The Faculty record.
-   * @private
-   * @throws AppError if the faculty is not found.
-   */
+  // Finds a Faculty record by departmentId and abbreviation.
   private async findFaculty(
     departmentId: string,
     facultyAbbreviation: string
   ): Promise<Faculty> {
     const facultyKey = `${departmentId}_${facultyAbbreviation}`;
-    // Corrected type: Allow null or undefined from cache
     let faculty: Faculty | null | undefined = this.facultyCache.get(facultyKey);
     if (faculty) return faculty;
 
@@ -436,18 +361,7 @@ class FacultyMatrixUploadService {
     return faculty;
   }
 
-  /**
-   * @description Processes the faculty matrix Excel file.
-   * It sends the file to a Flask server for initial parsing, then iterates
-   * through the processed data to create/update SubjectAllocation records.
-   * @param fileBuffer The buffer of the uploaded Excel file.
-   * @param academicYearString The academic year string (e.g., "2024-2025").
-   * @param semesterType The type of semester (ODD/EVEN).
-   * @param deptAbbreviation The abbreviation of the department.
-   * @returns {Promise<{ message: string; rowsAffected: number; missingFaculties: string[]; missingSubjects: string[]; totalRowsSkippedDueToMissingEntities: number; skippedRowsDetails: string[]; }>}
-   * A summary of the processing results.
-   * @throws AppError if file processing fails or essential data is missing.
-   */
+  // Processes the faculty matrix Excel file.
   public async processFacultyMatrix(
     fileBuffer: Buffer,
     academicYearString: string,
@@ -464,23 +378,21 @@ class FacultyMatrixUploadService {
     flaskErrors: string[];
     flaskSuccess: boolean;
   }> {
-    const batchSize = 500; // Number of allocations to process in a single Prisma createMany operation
+    const batchSize = 500;
     let allocationBatch: AllocationBatchItem[] = [];
-    let totalAllocationsAdded = 0; // Counts successfully added allocations (not duplicates)
-    let totalRowsSkippedDueToMissingEntities = 0; // Counts rows from Flask output where subject or faculty could not be found
-    const skippedRowsDetails: string[] = []; // Array to store details of skipped rows for frontend
-    const missingFaculties = new Set<string>(); // Track unique missing faculty abbreviations
-    const missingSubjects = new Set<string>(); // Track unique missing subject abbreviations
-    const flaskWarnings: string[] = []; // Track Flask warnings
-    const flaskErrors: string[] = []; // Track Flask errors
-    let flaskSuccess = true; // Track overall Flask processing success
+    let totalAllocationsAdded = 0;
+    let totalRowsSkippedDueToMissingEntities = 0;
+    const skippedRowsDetails: string[] = [];
+    const missingFaculties = new Set<string>();
+    const missingSubjects = new Set<string>();
+    const flaskWarnings: string[] = [];
+    const flaskErrors: string[] = [];
+    let flaskSuccess = true;
 
-    // Ensure Flask server URL is configured
     if (!FLASK_SERVER) {
       throw new AppError('Flask server URL is not configured.', 500);
     }
 
-    // Clear caches at the beginning of the request to ensure fresh data
     this.collegeCache.clear();
     this.departmentCache.clear();
     this.academicYearCache.clear();
@@ -489,18 +401,12 @@ class FacultyMatrixUploadService {
     this.subjectCache.clear();
     this.facultyCache.clear();
 
-    // Ensure college record exists
     const college = await this.ensureCollege();
 
-    // Find the AcademicYear for the provided academicYearString (crucial pre-check)
     const academicYear = await this.findAcademicYear(academicYearString);
-    // findAcademicYear throws AppError if not found, so no need for if (!academicYear) check here.
 
-    // Find the department based on the provided abbreviation and college ID
     const department = await this.findDepartment(deptAbbreviation, college.id);
-    // findDepartment throws AppError if not found, so no need for if (!department) check here.
 
-    // Prepare form data to send to Flask server
     const formData = new FormData();
     formData.append('facultyMatrix', fileBuffer, {
       filename: 'facultyMatrix.xlsx',
@@ -509,7 +415,7 @@ class FacultyMatrixUploadService {
     });
     formData.append('deptAbbreviation', deptAbbreviation);
     formData.append('academicYear', academicYearString);
-    formData.append('semesterRun', semesterType); // Pass the validated enum value
+    formData.append('semesterRun', semesterType);
 
     let flaskResponse: FlaskResponse;
     try {
@@ -529,11 +435,9 @@ class FacultyMatrixUploadService {
       );
     }
 
-    // Extract results and status from Flask response
     const processedData = flaskResponse.results;
     flaskSuccess = flaskResponse.status.success;
 
-    // Process Flask status information
     if (flaskResponse.status.errors && flaskResponse.status.errors.length > 0) {
       flaskResponse.status.errors.forEach((error) => {
         if (error.toLowerCase().includes('warning')) {
@@ -546,14 +450,8 @@ class FacultyMatrixUploadService {
 
     const processingStartTime = Date.now();
 
-    // Iterate through the processed data received from the Flask server
     for (const [_collegeName, collegeData] of Object.entries(processedData)) {
       for (const [deptName, deptData] of Object.entries(collegeData)) {
-        // Ensure deptName from Flask matches our department (optional, but good for sanity check)
-        // if (deptName !== department.name && deptName !== department.abbreviation) {
-        //   console.warn(`Flask data department name mismatch: Expected '${department.name}' or '${department.abbreviation}', got '${deptName}'. Processing anyway.`);
-        // }
-
         for (const [semesterNum, semesterData] of Object.entries(deptData)) {
           const parsedSemesterNum = parseInt(semesterNum);
           if (isNaN(parsedSemesterNum)) {
@@ -569,7 +467,6 @@ class FacultyMatrixUploadService {
               ? SemesterTypeEnum.ODD
               : SemesterTypeEnum.EVEN;
 
-          // Validate that the semester number from Flask data matches the expected semester type
           if (expectedSemesterType !== semesterType) {
             const message = `Skipping semester data for Semester ${parsedSemesterNum} (expected ${expectedSemesterType}): Mismatch with provided Semester Run '${semesterType}'.`;
             console.warn(message);
@@ -622,15 +519,14 @@ class FacultyMatrixUploadService {
                   subjectAbbreviation
                 );
               } catch (error: any) {
-                missingSubjects.add(subjectAbbreviation); // Track missing subject
+                missingSubjects.add(subjectAbbreviation);
                 const message = `Skipping subject allocation for Dept '${department.abbreviation}', Semester '${parsedSemesterNum}', Division '${divisionName}': Subject '${subjectAbbreviation}' not found`;
                 console.warn(message);
                 skippedRowsDetails.push(message);
                 totalRowsSkippedDueToMissingEntities++;
-                continue; // Skip to next subject if not found
+                continue;
               }
 
-              // Process Lectures
               if (subjectData.lectures) {
                 const facultyAbbr = subjectData.lectures.designated_faculty;
                 let faculty: Faculty;
@@ -643,14 +539,14 @@ class FacultyMatrixUploadService {
                     subjectId: subject.id,
                     divisionId: division.id,
                     semesterId: semester.id,
-                    lectureType: 'LECTURE', // Assuming 'LECTURE' for lectures
-                    batch: '-', // Default batch for lectures
+                    lectureType: 'LECTURE',
+                    batch: '-',
                     academicYearId: academicYear.id,
                     isDeleted: false,
                   };
                   allocationBatch.push(lectureAllocation);
                 } catch (error: any) {
-                  missingFaculties.add(facultyAbbr); // Track missing faculty
+                  missingFaculties.add(facultyAbbr);
                   const message = `Skipping lecture allocation for Subject '${subjectAbbreviation}', Division '${divisionName}': Faculty '${facultyAbbr}' not found`;
                   console.warn(message);
                   skippedRowsDetails.push(message);
@@ -658,7 +554,6 @@ class FacultyMatrixUploadService {
                 }
               }
 
-              // Process Labs
               if (subjectData.labs) {
                 for (const [batch, labData] of Object.entries(
                   subjectData.labs
@@ -677,14 +572,14 @@ class FacultyMatrixUploadService {
                       subjectId: subject.id,
                       divisionId: division.id,
                       semesterId: semester.id,
-                      lectureType: 'LAB', // Assuming 'LAB' for labs
+                      lectureType: 'LAB',
                       batch: batch,
                       academicYearId: academicYear.id,
                       isDeleted: false,
                     };
                     allocationBatch.push(labAllocation);
                   } catch (error: any) {
-                    missingFaculties.add(facultyAbbr); // Track missing faculty
+                    missingFaculties.add(facultyAbbr);
                     const message = `Skipping lab allocation for Subject '${subjectAbbreviation}', Division '${divisionName}', Batch '${batch}': Faculty '${facultyAbbr}' not found`;
                     console.warn(message);
                     skippedRowsDetails.push(message);
@@ -693,22 +588,19 @@ class FacultyMatrixUploadService {
                 }
               }
 
-              // Check batch size and insert allocations
               if (allocationBatch.length >= batchSize) {
                 try {
                   const result = await prisma.subjectAllocation.createMany({
                     data: allocationBatch,
-                    skipDuplicates: true, // Allocations that are exact duplicates will be skipped by Prisma
+                    skipDuplicates: true,
                   });
                   totalAllocationsAdded += result.count;
                 } catch (dbError: any) {
                   const message = `Error inserting batch of SubjectAllocations: ${dbError.message || 'Unknown database error'}`;
                   console.error(message, dbError);
                   skippedRowsDetails.push(message);
-                  // These are not "skipped rows" from Flask, but failed DB inserts.
-                  // Decided not to increment totalRowsSkippedDueToMissingEntities here.
                 } finally {
-                  allocationBatch = []; // Reset batch regardless of success/failure
+                  allocationBatch = [];
                 }
               }
             }
@@ -717,7 +609,6 @@ class FacultyMatrixUploadService {
       }
     }
 
-    // Insert any remaining allocations in the final batch
     if (allocationBatch.length > 0) {
       try {
         const result = await prisma.subjectAllocation.createMany({

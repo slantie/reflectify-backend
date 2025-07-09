@@ -5,30 +5,20 @@
  */
 
 import { Division, Prisma } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
-// Simple in-memory cache for division data
-// Keyed by a composite string: `${departmentId}_${divisionName}_${semesterId}`
 const divisionCache = new Map<string, Division>();
 
-// Interface for division data input
 interface DivisionDataInput {
   departmentId: string;
   semesterId: string;
   divisionName: string;
-  studentCount?: number; // Optional, as it will be calculated or defaulted
+  studentCount?: number;
 }
 
 class DivisionService {
-  /**
-   * Retrieves all active divisions, optionally filtered by departmentId and semesterId.
-   * Includes related department and semester, and calculates studentCount.
-   * Only returns divisions that are not soft-deleted and belong to non-soft-deleted parents.
-   * @param departmentId - Optional ID of the department to filter by.
-   * @param semesterId - Optional ID of the semester to filter by.
-   * @returns An array of Division objects with calculated studentCount.
-   */
+  // Retrieves all active divisions, optionally filtered by departmentId and semesterId.
   public async getAllDivisions(
     departmentId?: string,
     semesterId?: string
@@ -44,7 +34,6 @@ class DivisionService {
         whereClause.departmentId = departmentId;
         whereClause.semesterId = semesterId;
       } else if (departmentId || semesterId) {
-        // This case should ideally be caught by Zod validation, but as a safeguard
         throw new AppError(
           'Both departmentId and semesterId must be provided if filtering.',
           400
@@ -57,7 +46,6 @@ class DivisionService {
           department: true,
           semester: true,
           students: {
-            // Include students to calculate count
             where: { isDeleted: false },
           },
           mentors: { where: { isDeleted: false } },
@@ -66,7 +54,6 @@ class DivisionService {
         },
       });
 
-      // Map the divisions to include calculated studentCount and remove the raw students array
       const divisionsWithCount = divisions.map((division) => {
         const { students, ...rest } = division;
         return {
@@ -82,20 +69,12 @@ class DivisionService {
     }
   }
 
-  /**
-   * Creates a new division.
-   * Validates existence and active status of parent department and semester.
-   * @param data - The data for the new division.
-   * @returns The created Division object.
-   * @throws AppError if department/semester not found or if division name already exists.
-   */
+  // Creates a new division.
   public async createDivision(data: DivisionDataInput): Promise<Division> {
     const { departmentId, semesterId, divisionName } = data;
 
-    // Clear cache on any write operation
     divisionCache.clear();
 
-    // 1. Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -103,7 +82,6 @@ class DivisionService {
       throw new AppError('Department not found or is deleted.', 400);
     }
 
-    // 2. Validate Semester existence and active status
     const existingSemester = await prisma.semester.findUnique({
       where: { id: semesterId, isDeleted: false },
     });
@@ -124,13 +102,9 @@ class DivisionService {
           departmentId,
           semesterId,
           divisionName,
-          studentCount: data.studentCount || 0, // Use provided count or default to 0
+          studentCount: data.studentCount || 0,
         },
-        update: {
-          // No specific update logic from original, so just an empty object or specific fields
-          // For upsert, 'update' is required. If no specific updates are allowed on existing,
-          // you might just update a timestamp or keep it empty.
-        },
+        update: {},
         include: {
           department: true,
           semester: true,
@@ -159,15 +133,9 @@ class DivisionService {
     }
   }
 
-  /**
-   * Retrieves a single active division by its ID.
-   * Includes all related data as per the original controller.
-   * @param id - The ID of the division to retrieve.
-   * @returns The Division object, or null if not found.
-   */
+  // Retrieves a single active division by its ID.
   public async getDivisionById(id: string): Promise<Division | null> {
-    // Try to get from cache first (if cached by ID, otherwise it's a miss)
-    let division: Division | null | undefined = divisionCache.get(id); // Assuming cache key is ID for this method
+    let division: Division | null | undefined = divisionCache.get(id);
     if (division) {
       return division;
     }
@@ -191,7 +159,7 @@ class DivisionService {
       });
 
       if (division) {
-        divisionCache.set(id, division); // Cache the result by ID
+        divisionCache.set(id, division);
       }
       return division;
     } catch (error: any) {
@@ -200,23 +168,14 @@ class DivisionService {
     }
   }
 
-  /**
-   * Updates an existing division.
-   * Validates existence and active status of parent department and semester if their IDs are provided.
-   * @param id - The ID of the division to update.
-   * @param data - The partial data to update the division with.
-   * @returns The updated Division object.
-   * @throws AppError if the division is not found or update fails.
-   */
+  // Updates an existing division.
   public async updateDivision(
     id: string,
     data: Partial<DivisionDataInput>
   ): Promise<Division> {
     try {
-      // Clear cache on any write operation
       divisionCache.clear();
 
-      // Validate Department existence if departmentId is provided
       if (data.departmentId) {
         const existingDepartment = await prisma.department.findUnique({
           where: { id: data.departmentId, isDeleted: false },
@@ -229,7 +188,6 @@ class DivisionService {
         }
       }
 
-      // Validate Semester existence if semesterId is provided
       if (data.semesterId) {
         const existingSemester = await prisma.semester.findUnique({
           where: { id: data.semesterId, isDeleted: false },
@@ -243,7 +201,7 @@ class DivisionService {
       }
 
       const division = await prisma.division.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: data,
         include: {
           department: true,
@@ -254,12 +212,11 @@ class DivisionService {
           feedbackForms: { where: { isDeleted: false } },
         },
       });
-      divisionCache.set(id, division); // Update cache by ID
+      divisionCache.set(id, division);
       return division;
     } catch (error: any) {
       console.error('Error in DivisionService.updateDivision:', error);
       if (error.code === 'P2025') {
-        // Prisma error for record not found for update
         throw new AppError('Division not found for update.', 404);
       }
       if (
@@ -275,19 +232,13 @@ class DivisionService {
     }
   }
 
-  /**
-   * Soft deletes a division by setting its isDeleted flag to true.
-   * @param id - The ID of the division to soft delete.
-   * @returns The soft-deleted Division object.
-   * @throws AppError if the division is not found.
-   */
+  // Soft deletes a division.
   public async softDeleteDivision(id: string): Promise<Division> {
     try {
-      // Clear cache before deletion
       divisionCache.clear();
 
       const division = await prisma.division.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return division;
@@ -300,23 +251,15 @@ class DivisionService {
     }
   }
 
-  /**
-   * Performs a batch creation of divisions.
-   * Validates existence and active status of parent department and semester for each division.
-   * @param divisionsData - An array of division data objects.
-   * @returns An array of created or updated Division objects.
-   * @throws AppError if any division creation/update fails due to invalid parent IDs or unique constraints.
-   */
+  // Performs a batch creation of divisions.
   public async batchCreateDivisions(
     divisionsData: DivisionDataInput[]
   ): Promise<Division[]> {
-    // Clear cache before batch operation
     divisionCache.clear();
 
     const results: Division[] = [];
 
     for (const div of divisionsData) {
-      // Validate Department existence and active status for each division
       const existingDepartment = await prisma.department.findUnique({
         where: { id: div.departmentId, isDeleted: false },
       });
@@ -327,7 +270,6 @@ class DivisionService {
         );
       }
 
-      // Validate Semester existence and active status for each division
       const existingSemester = await prisma.semester.findUnique({
         where: { id: div.semesterId, isDeleted: false },
       });
@@ -353,7 +295,7 @@ class DivisionService {
             divisionName: div.divisionName,
             studentCount: div.studentCount || 0,
           },
-          update: {}, // No specific update logic for existing divisions in batch create
+          update: {},
           include: {
             department: true,
             semester: true,

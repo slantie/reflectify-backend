@@ -6,19 +6,14 @@
 
 import ExcelJS from 'exceljs';
 import { Designation, College, Department } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
-import { facultyExcelRowSchema } from '../../utils/validators/upload.validation'; // Import Zod schema
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
+import { facultyExcelRowSchema } from '../../utils/validators/upload.validation';
 
-// Caches to reduce database lookups for frequently accessed entities during a single upload operation
-const COLLEGE_ID = 'LDRP-ITR'; // Assuming this is a constant for your college
+const COLLEGE_ID = 'LDRP-ITR';
 const collegeCache = new Map<string, College>();
 const departmentCache = new Map<string, Department>();
-// No need for facultyCache here as we're doing findUnique for each faculty, not batch lookups
 
-// --- Canonical Department Mapping ---
-// This map defines the canonical full name and abbreviation for each department.
-// Keyed by a common identifier (e.g., the abbreviation) for easy lookup.
 const DEPARTMENT_MAPPING: Record<
   string,
   { name: string; abbreviation: string }
@@ -30,21 +25,15 @@ const DEPARTMENT_MAPPING: Record<
   CIVIL: { name: 'Civil Engineering', abbreviation: 'CIVIL' },
   AUTO: { name: 'Automobile Engineering', abbreviation: 'AUTO' },
   EE: { name: 'Electrical Engineering', abbreviation: 'EE' },
-  // Add any other departments here
 };
 
 class FacultyDataUploadService {
-  /**
-   * @dev Ensures the College record exists in the database and caches it.
-   * This prevents repeated database queries for the same college during an upload.
-   * @returns {Promise<College>} The College record.
-   * @private
-   */
+  // Ensures the College record exists in the database and caches it.
   private async ensureCollege(): Promise<College> {
     let college = collegeCache.get(COLLEGE_ID);
     if (!college) {
       college = await prisma.college.upsert({
-        where: { id: COLLEGE_ID, isDeleted: false }, // Filter out soft-deleted colleges
+        where: { id: COLLEGE_ID, isDeleted: false },
         create: {
           id: COLLEGE_ID,
           name: 'LDRP Institute of Technology and Research',
@@ -52,23 +41,17 @@ class FacultyDataUploadService {
           address: 'Sector 15, Gandhinagar, Gujarat',
           contactNumber: '+91-79-23241492',
           logo: 'ldrp-logo.png',
-          images: {}, // Assuming images is a JSON field or similar
-          isDeleted: false, // Ensure new college is not soft-deleted
+          images: {},
+          isDeleted: false,
         },
-        update: {}, // No specific update data needed if it exists
+        update: {},
       });
       collegeCache.set(COLLEGE_ID, college);
     }
     return college;
   }
 
-  /**
-   * @dev Extracts the string, number, or Date value from an ExcelJS cell, handling rich text and hyperlinks.
-   * Returns null for empty or undefined cells.
-   * @param {ExcelJS.Cell} cell - The ExcelJS cell object.
-   * @returns {string | number | Date | null} The value of the cell, or null if empty/undefined.
-   * @private
-   */
+  // Extracts the string, number, or Date value from an ExcelJS cell.
   private getCellValue(cell: ExcelJS.Cell): string | number | Date | null {
     const value = cell.value;
 
@@ -81,7 +64,7 @@ class FacultyDataUploadService {
     }
 
     if (typeof value === 'object' && 'hyperlink' in value && 'text' in value) {
-      return value.text?.toString() || null; // Return null if text is empty for hyperlink cells
+      return value.text?.toString() || null;
     }
 
     if (typeof value === 'number') {
@@ -91,16 +74,11 @@ class FacultyDataUploadService {
     return value.toString();
   }
 
-  /**
-   * @dev Formats a Date object to a YYYY-MM-DD string for consistent comparison.
-   * @param {Date | null} date - The date to format.
-   * @returns {string} The formatted date string, or an empty string if null/invalid.
-   * @private
-   */
+  // Formats a Date object to a YYYY-MM-DD string.
   private formatDateToYYYYMMDD(date: Date | null): string {
     if (!date) return '';
     try {
-      const d = new Date(date); // Ensure it's a valid Date object
+      const d = new Date(date);
       const year = d.getFullYear();
       const month = (d.getMonth() + 1).toString().padStart(2, '0');
       const day = d.getDate().toString().padStart(2, '0');
@@ -111,12 +89,7 @@ class FacultyDataUploadService {
     }
   }
 
-  /**
-   * @dev Parses a date string in DD-MM-YYYY or DD/MM/YYYY format into a Date object.
-   * @param {string} dateString - The date string to parse.
-   * @returns {Date | null} The parsed Date object, or null if invalid.
-   * @private
-   */
+  // Parses a date string in DD-MM-YYYY or DD/MM/YYYY format into a Date object.
   private parseDDMMYYYY(dateString: string): Date | null {
     if (!dateString) return null;
 
@@ -125,12 +98,11 @@ class FacultyDataUploadService {
 
     if (parts.length === 3) {
       const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed in JavaScript Date
+      const month = parseInt(parts[1], 10) - 1;
       const year = parseInt(parts[2], 10);
 
       if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
         const date = new Date(year, month, day);
-        // Validate if the parsed date components match the input to prevent invalid date conversions
         if (
           date.getDate() === day &&
           date.getMonth() === month &&
@@ -143,29 +115,19 @@ class FacultyDataUploadService {
     return null;
   }
 
-  /**
-   * @dev Upserts (creates or updates) a Department record, using a canonical mapping.
-   * Caches the result for subsequent lookups.
-   * @param deptInput The abbreviation or name from the Excel file.
-   * @param collegeId The ID of the associated college.
-   * @returns {Promise<Department>} The Department record.
-   * @private
-   * @throws AppError if the department cannot be created or found.
-   */
+  // Upserts (creates or updates) a Department record, using a canonical mapping.
   private async upsertDepartment(
     deptInput: string,
     collegeId: string
   ): Promise<Department> {
-    let department = departmentCache.get(deptInput); // Try to get from cache using original input string
+    let department = departmentCache.get(deptInput);
     let canonicalDept: { name: string; abbreviation: string } | undefined;
 
-    if (department) return department; // Return from cache if found
+    if (department) return department;
 
-    // Attempt to find canonical department details from our mapping
-    canonicalDept = DEPARTMENT_MAPPING[deptInput.toUpperCase()]; // Use uppercase for map key lookup
+    canonicalDept = DEPARTMENT_MAPPING[deptInput.toUpperCase()];
 
     if (!canonicalDept) {
-      // If not found as an abbreviation, check if it's a full name
       for (const key in DEPARTMENT_MAPPING) {
         if (
           DEPARTMENT_MAPPING[key].name.toLowerCase() === deptInput.toLowerCase()
@@ -177,33 +139,29 @@ class FacultyDataUploadService {
     }
 
     if (!canonicalDept) {
-      // If still not found in our predefined map, use the input as is, but warn
       console.warn(
         `Department '${deptInput}' not found in predefined mapping. Using input as canonical.`
       );
-      canonicalDept = { name: deptInput, abbreviation: deptInput }; // Fallback to using input as both
+      canonicalDept = { name: deptInput, abbreviation: deptInput };
     }
 
-    // Now, use the canonical name and abbreviation for database operations
     department = await prisma.department.upsert({
       where: {
         name_collegeId: {
-          // Use the canonical name for the unique constraint
           name: canonicalDept.name,
           collegeId: collegeId,
         },
-        isDeleted: false, // Only consider non-soft-deleted departments
+        isDeleted: false,
       },
       create: {
         name: canonicalDept.name,
         abbreviation: canonicalDept.abbreviation,
-        hodName: `HOD of ${canonicalDept.name}`, // Placeholder HOD name
-        hodEmail: `hod.${canonicalDept.abbreviation.toLowerCase()}@ldrp.ac.in`, // Placeholder HOD email
+        hodName: `HOD of ${canonicalDept.name}`,
+        hodEmail: `hod.${canonicalDept.abbreviation.toLowerCase()}@ldrp.ac.in`,
         collegeId: collegeId,
-        isDeleted: false, // Ensure new department is not soft-deleted
+        isDeleted: false,
       },
       update: {
-        // Ensure existing department's name and abbreviation are updated to canonical form
         name: canonicalDept.name,
         abbreviation: canonicalDept.abbreviation,
       },
@@ -216,18 +174,11 @@ class FacultyDataUploadService {
       );
     }
 
-    departmentCache.set(deptInput, department); // Cache using the original input string for future lookups in this request
+    departmentCache.set(deptInput, department);
     return department;
   }
 
-  /**
-   * @description Processes an Excel file containing faculty data,
-   * creating or updating faculty records and related department entities.
-   * @param fileBuffer The buffer of the uploaded Excel file.
-   * @returns {Promise<{ message: string; addedRows: number; updatedRows: number; unchangedRows: number; skippedRows: number; skippedRowsDetails: string[]; }>}
-   * A summary of the processing results.
-   * @throws AppError if file processing fails or essential data is missing.
-   */
+  // Processes an Excel file containing faculty data.
   public async processFacultyData(fileBuffer: Buffer): Promise<{
     message: string;
     rowsAffected: number;
@@ -250,35 +201,30 @@ class FacultyDataUploadService {
         );
       }
 
-      // Clear caches at the beginning of the request to ensure fresh data
       collegeCache.clear();
       departmentCache.clear();
 
-      // Ensure College exists once per upload
       const college = await this.ensureCollege();
 
-      // Iterate over rows, starting from the second row (assuming first is header)
       for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber);
 
-        // Extract raw cell values
         const rawData = {
-          name: this.getCellValue(row.getCell(2))?.toString()?.trim() || '', // Column B
+          name: this.getCellValue(row.getCell(2))?.toString()?.trim() || '',
           email:
             this.getCellValue(row.getCell(3))
               ?.toString()
               ?.trim()
-              ?.toLowerCase() || '', // Column C - IMPORTANT: Normalize to lowercase
+              ?.toLowerCase() || '',
           facultyAbbreviation:
-            this.getCellValue(row.getCell(4))?.toString()?.trim() || null, // Abbreviation (Column D)
+            this.getCellValue(row.getCell(4))?.toString()?.trim() || null,
           designationString:
-            this.getCellValue(row.getCell(5))?.toString()?.trim() || '', // Designation (Column E)
+            this.getCellValue(row.getCell(5))?.toString()?.trim() || '',
           deptInput:
-            this.getCellValue(row.getCell(6))?.toString()?.trim() || '', // Department (Column F)
-          joiningDate: this.getCellValue(row.getCell(7)), // Joining Date (Column G)
+            this.getCellValue(row.getCell(6))?.toString()?.trim() || '',
+          joiningDate: this.getCellValue(row.getCell(7)),
         };
 
-        // Validate row data using Zod
         const validationResult = facultyExcelRowSchema.safeParse(rawData);
 
         if (!validationResult.success) {
@@ -299,10 +245,9 @@ class FacultyDataUploadService {
           facultyAbbreviation,
           designationString,
           deptInput,
-          joiningDate: rawJoiningDateValue, // Renamed for clarity
+          joiningDate: rawJoiningDateValue,
         } = validatedData;
 
-        // Map Designation String to Enum
         let facultyDesignation: Designation;
         const lowerCaseDesignation = designationString.toLowerCase();
         switch (lowerCaseDesignation) {
@@ -319,7 +264,6 @@ class FacultyDataUploadService {
             facultyDesignation = Designation.LabAsst;
             break;
           default:
-            // This case should ideally be caught by Zod's refine, but as a fallback
             const message = `Row ${rowNumber}: Unknown designation '${designationString}' for faculty '${name}'. Defaulting to AsstProf.`;
             console.warn(message);
             skippedRowsDetails.push(message);
@@ -328,10 +272,8 @@ class FacultyDataUploadService {
         }
 
         try {
-          // Ensure department exists or is upserted
           const department = await this.upsertDepartment(deptInput, college.id);
 
-          // Handle Joining Date Parsing
           let actualJoiningDate: Date | null = null;
           if (rawJoiningDateValue instanceof Date) {
             actualJoiningDate = rawJoiningDateValue;
@@ -350,24 +292,21 @@ class FacultyDataUploadService {
               continue;
             }
           }
-          // If rawJoiningDateValue is null/undefined, actualJoiningDate remains null, which is fine.
 
-          // Prepare data for Faculty upsert/create
           const newFacultyData = {
             name: name,
-            email: email, // Use the normalized lowercase email
-            abbreviation: facultyAbbreviation, // Store empty string as null for abbreviation
-            designation: facultyDesignation, // Use the mapped enum value
-            seatingLocation: `${department.name} Department`, // Derived from department
-            joiningDate: actualJoiningDate, // Use the parsed Date object or null
+            email: email,
+            abbreviation: facultyAbbreviation,
+            designation: facultyDesignation,
+            seatingLocation: `${department.name} Department`,
+            joiningDate: actualJoiningDate,
             departmentId: department.id,
           };
 
-          // --- Faculty Upsert/Update Logic (with soft-delete filter) ---
           const existingFaculty = await prisma.faculty.findUnique({
-            where: { email: newFacultyData.email, isDeleted: false }, // Lookup by unique (normalized) email, filter out soft-deleted
+            where: { email: newFacultyData.email, isDeleted: false },
             select: {
-              id: true, // Need ID for update
+              id: true,
               name: true,
               email: true,
               abbreviation: true,
@@ -379,12 +318,11 @@ class FacultyDataUploadService {
           });
 
           if (existingFaculty) {
-            // Normalize existing data for comparison (trim strings and lowercase email)
             const existingNormalizedData = {
               name: existingFaculty.name?.trim() || '',
-              email: existingFaculty.email?.trim()?.toLowerCase() || '', // Normalize existing email
-              abbreviation: existingFaculty.abbreviation || null, // Normalize null/undefined to null
-              designation: existingFaculty.designation, // Enum value
+              email: existingFaculty.email?.trim()?.toLowerCase() || '',
+              abbreviation: existingFaculty.abbreviation || null,
+              designation: existingFaculty.designation,
               seatingLocation: existingFaculty.seatingLocation?.trim() || '',
               joiningDate: this.formatDateToYYYYMMDD(
                 existingFaculty.joiningDate
@@ -392,12 +330,11 @@ class FacultyDataUploadService {
               departmentId: existingFaculty.departmentId,
             };
 
-            // Normalize new data from Excel for comparison
             const newNormalizedData = {
               name: newFacultyData.name,
-              email: newFacultyData.email, // Already normalized
-              abbreviation: newFacultyData.abbreviation, // Already normalized to null
-              designation: newFacultyData.designation, // Enum value
+              email: newFacultyData.email,
+              abbreviation: newFacultyData.abbreviation,
+              designation: newFacultyData.designation,
               seatingLocation: newFacultyData.seatingLocation,
               joiningDate: this.formatDateToYYYYMMDD(
                 newFacultyData.joiningDate
@@ -405,10 +342,9 @@ class FacultyDataUploadService {
               departmentId: newFacultyData.departmentId,
             };
 
-            // Compare individual fields to determine if an update is needed
             const isChanged =
               existingNormalizedData.name !== newNormalizedData.name ||
-              existingNormalizedData.email !== newNormalizedData.email || // Compare normalized emails
+              existingNormalizedData.email !== newNormalizedData.email ||
               existingNormalizedData.abbreviation !==
                 newNormalizedData.abbreviation ||
               existingNormalizedData.designation !==
@@ -422,16 +358,16 @@ class FacultyDataUploadService {
 
             if (isChanged) {
               await prisma.faculty.update({
-                where: { id: existingFaculty.id }, // Update by ID for robustness
+                where: { id: existingFaculty.id },
                 data: {
                   name: newFacultyData.name,
-                  email: newFacultyData.email, // Store normalized email
-                  abbreviation: newFacultyData.abbreviation, // Pass null if empty
-                  designation: newFacultyData.designation, // Pass enum value
+                  email: newFacultyData.email,
+                  abbreviation: newFacultyData.abbreviation,
+                  designation: newFacultyData.designation,
                   seatingLocation: newFacultyData.seatingLocation,
-                  joiningDate: newFacultyData.joiningDate || undefined, // Send Date object or undefined for null
-                  department: { connect: { id: newFacultyData.departmentId } }, // Connect to existing department
-                  isDeleted: false, // Ensure it's not soft-deleted if it was for some reason
+                  joiningDate: newFacultyData.joiningDate || undefined,
+                  department: { connect: { id: newFacultyData.departmentId } },
+                  isDeleted: false,
                 },
               });
               updatedRows++;
@@ -439,29 +375,26 @@ class FacultyDataUploadService {
               unchangedRows++;
             }
           } else {
-            // Create new faculty record
             await prisma.faculty.create({
               data: {
                 name: newFacultyData.name,
-                email: newFacultyData.email, // Store normalized email
-                abbreviation: newFacultyData.abbreviation, // Pass null if empty
-                designation: newFacultyData.designation, // Pass enum value
+                email: newFacultyData.email,
+                abbreviation: newFacultyData.abbreviation,
+                designation: newFacultyData.designation,
                 seatingLocation: newFacultyData.seatingLocation,
                 department: {
-                  connect: { id: newFacultyData.departmentId }, // Connect to existing department
+                  connect: { id: newFacultyData.departmentId },
                 },
-                joiningDate: newFacultyData.joiningDate || undefined, // Pass Date object or undefined for null
-                isDeleted: false, // Ensure new faculty is not soft-deleted
+                joiningDate: newFacultyData.joiningDate || undefined,
+                isDeleted: false,
               },
             });
             addedRows++;
           }
 
-          // --- Update HoD information if the current faculty is an HoD ---
           if (facultyDesignation === Designation.HOD) {
-            // Fetch the department again with hodName and hodEmail to ensure latest state for comparison
             const currentDepartment = await prisma.department.findUnique({
-              where: { id: department.id, isDeleted: false }, // Filter out soft-deleted departments
+              where: { id: department.id, isDeleted: false },
               select: { hodName: true, hodEmail: true },
             });
 
@@ -470,7 +403,6 @@ class FacultyDataUploadService {
               (currentDepartment.hodName !== newFacultyData.name ||
                 currentDepartment.hodEmail !== newFacultyData.email)
             ) {
-              // Use a transaction for HOD update to ensure atomicity
               await prisma.$transaction(async (tx) => {
                 await tx.department.update({
                   where: { id: department.id },
@@ -491,11 +423,11 @@ class FacultyDataUploadService {
       }
 
       const rowsAffected = addedRows + updatedRows;
-      console.log("Faculty rowsAffected:", rowsAffected);
+      console.log('Faculty rowsAffected:', rowsAffected);
 
       return {
         message: 'Faculty data import complete.',
-        rowsAffected: rowsAffected, // Total rows affected (added + updated)
+        rowsAffected: rowsAffected,
       };
     } catch (error: any) {
       console.error(
@@ -507,7 +439,6 @@ class FacultyDataUploadService {
         500
       );
     } finally {
-      // Clear all caches after processing to free up memory.
       collegeCache.clear();
       departmentCache.clear();
     }

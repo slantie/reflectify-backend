@@ -1,13 +1,12 @@
-// src/utils/validators/subjectAllocation.validation.ts
+/**
+ * @file src/utils/validators/subjectAllocation.validation.ts
+ * @description Zod schemas for validating subject allocation related requests.
+ */
 
 import { z } from 'zod';
-import { LectureType } from '@prisma/client'; // Import LectureType enum from Prisma client
+import { LectureType } from '@prisma/client';
 
-/**
- * @dev Zod schema for validating the creation of a new subject allocation.
- * Ensures all required fields are present and have the correct types.
- * 'academicYear' is expected as a string (e.g., "2023-2024") for lookup in service.
- */
+// Zod schema for validating the creation of a new subject allocation.
 export const createSubjectAllocationSchema = z.object({
   facultyId: z.string().uuid('Invalid faculty ID format. Must be a UUID.'),
   subjectId: z.string().uuid('Invalid subject ID format. Must be a UUID.'),
@@ -15,18 +14,15 @@ export const createSubjectAllocationSchema = z.object({
   semesterId: z.string().uuid('Invalid semester ID format. Must be a UUID.'),
   departmentId: z
     .string()
-    .uuid('Invalid department ID format. Must be a UUID.'), // Explicitly require departmentId
-  lectureType: z.nativeEnum(LectureType), // Validate against Prisma's LectureType enum
+    .uuid('Invalid department ID format. Must be a UUID.'),
+  lectureType: z.nativeEnum(LectureType),
   academicYear: z
     .string()
-    .min(1, 'Academic year string is required (e.g., "2023-2024").'), // String for lookup
-  batch: z.string().default('-').optional(), // Batch is optional, defaults to "-"
+    .min(1, 'Academic year string is required (e.g., "2023-2024").'),
+  batch: z.string().default('-').optional(),
 });
 
-/**
- * @dev Zod schema for validating the update of an existing subject allocation.
- * All fields are optional, allowing for partial updates.
- */
+// Zod schema for validating the update of an existing subject allocation.
 export const updateSubjectAllocationSchema = z
   .object({
     facultyId: z.string().uuid('Invalid faculty ID format.').optional(),
@@ -40,11 +36,11 @@ export const updateSubjectAllocationSchema = z
       .min(1, 'Academic year string cannot be empty.')
       .optional(),
     batch: z.string().optional(),
-    isDeleted: z.boolean().optional(), // Allow updating soft delete status
+    isDeleted: z.boolean().optional(),
   })
   .refine(
     (data) => {
-      // Ensure at least one field is provided for update
+      // Ensures at least one field is provided for update.
       if (Object.keys(data).length === 0) {
         throw new z.ZodError([
           {
@@ -63,10 +59,7 @@ export const updateSubjectAllocationSchema = z
     }
   );
 
-/**
- * @dev Zod schema for validating ID parameters in requests.
- * Ensures the ID is a valid UUID format.
- */
+// Zod schema for validating ID parameters in requests.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });

@@ -1,4 +1,9 @@
-// src/controllers/subject/subject.controller.ts
+/**
+ * @file src/controllers/subject/subject.controller.ts
+ * @description Controller for Subject operations.
+ * Handles request parsing, delegates to SubjectService, and sends responses.
+ * Uses asyncHandler for error handling and Zod for validation.
+ */
 
 import { Request, Response } from 'express';
 import { subjectService } from '../../services/subject/subject.service';
@@ -13,14 +18,8 @@ import {
   batchCreateSubjectsSchema,
 } from '../../utils/validators/subject.validation';
 
-/**
- * @description Retrieves all active subjects.
- * @route GET /api/v1/subjects
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin, Faculty, Student)
- */
 export const getAllSubjects = asyncHandler(
+  // Retrieves all active subjects.
   async (_req: Request, res: Response) => {
     const subjects = await subjectService.getAllSubjects();
 
@@ -34,16 +33,10 @@ export const getAllSubjects = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves a single subject by ID.
- * @route GET /api/v1/subjects/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, Faculty, Student)
- */
 export const getSubjectById = asyncHandler(
+  // Retrieves a single subject by ID.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     const subject = await subjectService.getSubjectById(id);
 
@@ -60,16 +53,10 @@ export const getSubjectById = asyncHandler(
   }
 );
 
-/**
- * @description Creates a new subject.
- * @route POST /api/v1/subjects
- * @param {Request} req - Express Request object (expects subject data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const createSubject = asyncHandler(
+  // Creates a new subject.
   async (req: Request, res: Response) => {
-    const validatedData = createSubjectSchema.parse(req.body); // Validate request body
+    const validatedData = createSubjectSchema.parse(req.body);
 
     const subject = await subjectService.createSubject(validatedData);
 
@@ -83,17 +70,11 @@ export const createSubject = asyncHandler(
   }
 );
 
-/**
- * @description Updates an existing subject.
- * @route PATCH /api/v1/subjects/:id
- * @param {Request} req - Express Request object (expects id in params, partial subject data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const updateSubject = asyncHandler(
+  // Updates an existing subject.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
-    const validatedData = updateSubjectSchema.parse(req.body); // Validate request body
+    const { id } = idParamSchema.parse(req.params);
+    const validatedData = updateSubjectSchema.parse(req.body);
 
     const updatedSubject = await subjectService.updateSubject(
       id,
@@ -110,37 +91,25 @@ export const updateSubject = asyncHandler(
   }
 );
 
-/**
- * @description Soft deletes a subject.
- * @route DELETE /api/v1/subjects/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const softDeleteSubject = asyncHandler(
+  // Soft deletes a subject.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     await subjectService.softDeleteSubject(id);
 
     res.status(204).json({
       status: 'success',
       message: 'Subject soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );
 
-/**
- * @description Retrieves subjects by semester ID.
- * @route GET /api/v1/subjects/semester/:semesterId
- * @param {Request} req - Express Request object (expects semesterId in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, Faculty, Student)
- */
 export const getSubjectsBySemester = asyncHandler(
+  // Retrieves subjects by semester ID.
   async (req: Request, res: Response) => {
-    const { semesterId } = semesterIdParamSchema.parse(req.params); // Validate semester ID
+    const { semesterId } = semesterIdParamSchema.parse(req.params);
 
     const subjects = await subjectService.getSubjectsBySemester(semesterId);
 
@@ -155,33 +124,21 @@ export const getSubjectsBySemester = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves subject abbreviations, optionally filtered by department abbreviation.
- * @route GET /api/v1/subjects/abbreviations/:deptAbbr?
- * @param {Request} req - Express Request object (expects optional deptAbbr in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, Faculty)
- */
 export const getSubjectAbbreviations = asyncHandler(
+  // Retrieves subject abbreviations, optionally filtered by department abbreviation.
   async (req: Request, res: Response) => {
-    // Use safeParse to robustly handle optional parameters.
-    // This will return { success: true, data: { deptAbbr: string | undefined } }
-    // or { success: false, error: ZodError }
     const parsedParams = departmentAbbreviationParamSchema.safeParse(
       req.params
     );
 
     if (!parsedParams.success) {
-      // If validation fails (e.g., if an unexpected parameter is present and doesn't match the schema,
-      // or if deptAbbr is present but doesn't meet string criteria), throw an AppError.
-      // This is a more robust way to handle validation errors for params.
       throw new AppError(
         `Invalid parameter: ${parsedParams.error.errors[0].message}`,
         400
       );
     }
 
-    const { deptAbbr } = parsedParams.data; // deptAbbr will be string | undefined
+    const { deptAbbr } = parsedParams.data;
 
     const abbreviations =
       await subjectService.getSubjectAbbreviations(deptAbbr);
@@ -197,16 +154,10 @@ export const getSubjectAbbreviations = asyncHandler(
   }
 );
 
-/**
- * @description Performs a batch creation of subjects.
- * @route POST /api/v1/subjects/batch
- * @param {Request} req - Express Request object (expects { subjects: SubjectDataInput[] } in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const batchCreateSubjects = asyncHandler(
+  // Performs a batch creation of subjects.
   async (req: Request, res: Response) => {
-    const { subjects } = batchCreateSubjectsSchema.parse(req.body); // Validate array of subjects
+    const { subjects } = batchCreateSubjectsSchema.parse(req.body);
 
     const results = await subjectService.batchCreateSubjects(subjects);
 

@@ -28,8 +28,6 @@ const router = Router();
 // Apply authentication middleware to all feedback question and category routes
 router.use(isAuthenticated);
 
-// --- More Specific Routes (Literal paths first, then parameterized specific paths) ---
-
 // PATCH /api/v1/feedback-questions/questions/batch
 router.patch(
   '/questions/batch',
@@ -56,9 +54,7 @@ router
     createFeedbackQuestion
   );
 Designation.HOD;
-// --- Less Specific Routes (Still specific, but could conflict if ordered incorrectly) ---
-
-// GET /api/v1/feedback-questions/categoriesDesignation.HOD
+// GET /api/v1/feedback-questions/categories
 // POST /api/v1/feedback-questions/categories
 router
   .route('/categories')

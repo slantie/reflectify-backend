@@ -5,43 +5,35 @@
  */
 
 import { Faculty, Prisma, Designation } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
-// Simple in-memory cache for faculty data
-// Keyed by email or ID depending on the operation
 const facultyCache = new Map<string, Faculty>();
 
-// Interface for faculty data input
 interface FacultyDataInput {
   name: string;
   abbreviation?: string;
   email: string;
-  designation: Designation; // Use Prisma's Designation enum
+  designation: Designation;
   seatingLocation: string;
-  image?: string | null; // Allow null for image
-  joiningDate?: string; // Expect string for input, convert to Date internally
+  image?: string | null;
+  joiningDate?: string;
   departmentId: string;
 }
 
 class FacultyService {
-  /**
-   * Retrieves all active faculties.
-   * Includes related department, mentored divisions, and allocations.
-   * Only returns faculties that are not soft-deleted and belong to a non-soft-deleted department.
-   * @returns An array of Faculty objects.
-   */
+  // Retrieves all active faculties.
   public async getAllFaculties(): Promise<Faculty[]> {
     try {
       const faculties = await prisma.faculty.findMany({
         where: {
           isDeleted: false,
-          department: { isDeleted: false }, // Filter by active department
+          department: { isDeleted: false },
         },
         include: {
           department: true,
-          mentoredDivisions: { where: { isDeleted: false } }, // Filter active divisions
-          allocations: { where: { isDeleted: false } }, // Filter active allocations
+          mentoredDivisions: { where: { isDeleted: false } },
+          allocations: { where: { isDeleted: false } },
         },
       });
       return faculties;
@@ -51,14 +43,7 @@ class FacultyService {
     }
   }
 
-  /**
-   * Creates a new faculty or updates an existing one based on email.
-   * Handles default values for abbreviation, designation, and joining date.
-   * Validates existence and active status of the parent department.
-   * @param data - The data for the new faculty.
-   * @returns The created or updated Faculty object.
-   * @throws AppError if department not found or if email already exists for an active faculty.
-   */
+  // Creates a new faculty or updates an existing one based on email.
   public async createFaculty(data: FacultyDataInput): Promise<Faculty> {
     const {
       name,
@@ -71,10 +56,8 @@ class FacultyService {
       departmentId,
     } = data;
 
-    // Clear cache on any write operation
     facultyCache.clear();
 
-    // 1. Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -82,19 +65,18 @@ class FacultyService {
       throw new AppError('Department not found or is deleted.', 400);
     }
 
-    // Generate default values if not provided
     const finalAbbreviation =
       abbreviation ||
       name
         .split(' ')
         .map((n) => n[0])
         .join('')
-        .toUpperCase(); // E.g., John Doe -> JD
+        .toUpperCase();
     const finalJoiningDate = joiningDate ? new Date(joiningDate) : new Date();
 
     try {
       const faculty = await prisma.faculty.upsert({
-        where: { email: email }, // Unique field for upsert
+        where: { email: email },
         create: {
           name,
           abbreviation: finalAbbreviation,
@@ -106,9 +88,7 @@ class FacultyService {
           departmentId,
         },
         update: {
-          // For upsert, update is required. We can leave it empty if no specific update logic for existing.
-          // Or, update only if a field is explicitly provided in data.
-          name: name, // Assuming name can be updated
+          name: name,
           abbreviation:
             abbreviation !== undefined ? abbreviation : finalAbbreviation,
           designation: designation,
@@ -124,7 +104,7 @@ class FacultyService {
         },
       });
 
-      facultyCache.set(email, faculty); // Cache by email
+      facultyCache.set(email, faculty);
       return faculty;
     } catch (error: any) {
       console.error('Error in FacultyService.createFaculty:', error);
@@ -135,15 +115,9 @@ class FacultyService {
     }
   }
 
-  /**
-   * Retrieves a single active faculty by its ID.
-   * Includes related department, mentored divisions, and allocations.
-   * @param id - The ID of the faculty to retrieve.
-   * @returns The Faculty object, or null if not found.
-   */
+  // Retrieves a single active faculty by its ID.
   public async getFacultyById(id: string): Promise<Faculty | null> {
-    // Try to get from cache first
-    let faculty: Faculty | null | undefined = facultyCache.get(id); // Assuming cache key is ID for this method
+    let faculty: Faculty | null | undefined = facultyCache.get(id);
     if (faculty) {
       return faculty;
     }
@@ -163,7 +137,7 @@ class FacultyService {
       });
 
       if (faculty) {
-        facultyCache.set(id, faculty); // Cache the result by ID
+        facultyCache.set(id, faculty);
       }
       return faculty;
     } catch (error: any) {
@@ -172,23 +146,14 @@ class FacultyService {
     }
   }
 
-  /**
-   * Updates an existing faculty.
-   * Validates existence and active status of the parent department if departmentId is provided.
-   * @param id - The ID of the faculty to update.
-   * @param data - The partial data to update the faculty with.
-   * @returns The updated Faculty object.
-   * @throws AppError if the faculty is not found or update fails.
-   */
+  // Updates an existing faculty.
   public async updateFaculty(
     id: string,
     data: Partial<FacultyDataInput>
   ): Promise<Faculty> {
     try {
-      // Clear cache on any write operation
       facultyCache.clear();
 
-      // Validate Department existence if departmentId is provided
       if (data.departmentId) {
         const existingDepartment = await prisma.department.findUnique({
           where: { id: data.departmentId, isDeleted: false },
@@ -202,7 +167,7 @@ class FacultyService {
       }
 
       const faculty = await prisma.faculty.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: {
           ...data,
           joiningDate: data.joiningDate
@@ -215,12 +180,11 @@ class FacultyService {
           allocations: true,
         },
       });
-      facultyCache.set(id, faculty); // Update cache by ID
+      facultyCache.set(id, faculty);
       return faculty;
     } catch (error: any) {
       console.error('Error in FacultyService.updateFaculty:', error);
       if (error.code === 'P2025') {
-        // Prisma error for record not found for update
         throw new AppError('Faculty not found for update.', 404);
       }
       if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
@@ -230,19 +194,13 @@ class FacultyService {
     }
   }
 
-  /**
-   * Soft deletes a faculty by setting its isDeleted flag to true.
-   * @param id - The ID of the faculty to soft delete.
-   * @returns The soft-deleted Faculty object.
-   * @throws AppError if the faculty is not found.
-   */
+  // Soft deletes a faculty.
   public async softDeleteFaculty(id: string): Promise<Faculty> {
     try {
-      // Clear cache before deletion
       facultyCache.clear();
 
       const faculty = await prisma.faculty.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return faculty;
@@ -255,23 +213,15 @@ class FacultyService {
     }
   }
 
-  /**
-   * Performs a batch creation of faculties.
-   * Validates existence and active status of parent department for each faculty.
-   * @param facultiesData - An array of faculty data objects.
-   * @returns An array of created or updated Faculty objects.
-   * @throws AppError if any faculty creation/update fails due to invalid parent IDs or unique constraints.
-   */
+  // Performs a batch creation of faculties.
   public async batchCreateFaculties(
     facultiesData: FacultyDataInput[]
   ): Promise<Faculty[]> {
-    // Clear cache before batch operation
     facultyCache.clear();
 
     const results: Faculty[] = [];
 
     for (const fac of facultiesData) {
-      // Validate Department existence and active status for each faculty
       const existingDepartment = await prisma.department.findUnique({
         where: { id: fac.departmentId, isDeleted: false },
       });
@@ -282,7 +232,6 @@ class FacultyService {
         );
       }
 
-      // Generate default values for each faculty if not provided
       const finalAbbreviation =
         fac.abbreviation ||
         fac.name
@@ -345,37 +294,27 @@ class FacultyService {
     return results;
   }
 
-  /**
-   * Retrieves faculty abbreviations, optionally filtered by department abbreviation.
-   * Only includes active faculties and departments/colleges.
-   * @param deptAbbr - Optional department abbreviation to filter by.
-   * @returns An array of faculty abbreviations.
-   */
+  // Retrieves faculty abbreviations, optionally filtered by department abbreviation.
   public async getFacultyAbbreviations(deptAbbr?: string): Promise<string[]> {
     try {
-      // Define the base department filter
       const departmentFilter: Prisma.DepartmentWhereInput = {
         isDeleted: false,
         college: { isDeleted: false, id: 'LDRP-ITR' },
       };
 
-      // Add abbreviation filter if provided
       if (deptAbbr) {
-        // Assign directly, as 'abbreviation' is a valid property on DepartmentWhereInput
         departmentFilter.abbreviation = deptAbbr.trim().toUpperCase();
       }
 
       const faculties = await prisma.faculty.findMany({
         where: {
           isDeleted: false,
-          department: departmentFilter, // Use the constructed departmentFilter
+          department: departmentFilter,
         },
         select: { abbreviation: true },
       });
 
       if (!faculties.length && deptAbbr) {
-        // If a department abbreviation was provided but no faculties found,
-        // check if the department itself exists and is active.
         const departmentExists = await prisma.department.findFirst({
           where: {
             abbreviation: deptAbbr.trim().toUpperCase(),
@@ -389,18 +328,15 @@ class FacultyService {
             404
           );
         }
-        // If department exists but no faculties, return empty array (not a 404)
         return [];
       }
 
-      // Filter out null abbreviations, though your schema marks it optional so it could be null
       const abbreviations = faculties
         .map((f) => f.abbreviation)
         .filter((abbr): abbr is string => abbr !== null && abbr !== undefined);
       return abbreviations;
     } catch (error: any) {
       console.error('Error in FacultyService.getFacultyAbbreviations:', error);
-      // Re-throw AppError directly, otherwise wrap generic errors
       if (error instanceof AppError) {
         throw error;
       }

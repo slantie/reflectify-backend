@@ -1,4 +1,9 @@
-// src/controllers/subjectAllocation/subjectAllocation.controller.ts
+/**
+ * @file src/controllers/subjectAllocation/subjectAllocation.controller.ts
+ * @description Controller for Subject Allocation operations.
+ * Handles request parsing, delegates to SubjectAllocationService, and sends responses.
+ * Uses asyncHandler for error handling and Zod for validation.
+ */
 
 import { Request, Response } from 'express';
 import { subjectAllocationService } from '../../services/subjectAllocation/subjectAllocation.service';
@@ -10,14 +15,8 @@ import {
   idParamSchema,
 } from '../../utils/validators/subjectAllocation.validation';
 
-/**
- * @description Retrieves all active subject allocations.
- * @route GET /api/v1/subject-allocations
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf, Student)
- */
 export const getAllSubjectAllocations = asyncHandler(
+  // Retrieves all active subject allocations.
   async (_req: Request, res: Response) => {
     const subjectAllocations =
       await subjectAllocationService.getAllSubjectAllocations();
@@ -32,16 +31,10 @@ export const getAllSubjectAllocations = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves a single subject allocation by ID.
- * @route GET /api/v1/subject-allocations/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf, Student)
- */
 export const getSubjectAllocationById = asyncHandler(
+  // Retrieves a single subject allocation by ID.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     const subjectAllocation =
       await subjectAllocationService.getSubjectAllocationById(id);
@@ -59,16 +52,10 @@ export const getSubjectAllocationById = asyncHandler(
   }
 );
 
-/**
- * @description Creates a new subject allocation.
- * @route POST /api/v1/subject-allocations
- * @param {Request} req - Express Request object (expects subject allocation data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const createSubjectAllocation = asyncHandler(
+  // Creates a new subject allocation.
   async (req: Request, res: Response) => {
-    const validatedData = createSubjectAllocationSchema.parse(req.body); // Validate request body
+    const validatedData = createSubjectAllocationSchema.parse(req.body);
 
     const subjectAllocation =
       await subjectAllocationService.createSubjectAllocation(validatedData);
@@ -83,17 +70,11 @@ export const createSubjectAllocation = asyncHandler(
   }
 );
 
-/**
- * @description Updates an existing subject allocation.
- * @route PATCH /api/v1/subject-allocations/:id
- * @param {Request} req - Express Request object (expects id in params, partial subject allocation data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const updateSubjectAllocation = asyncHandler(
+  // Updates an existing subject allocation.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
-    const validatedData = updateSubjectAllocationSchema.parse(req.body); // Validate request body
+    const { id } = idParamSchema.parse(req.params);
+    const validatedData = updateSubjectAllocationSchema.parse(req.body);
 
     const updatedAllocation =
       await subjectAllocationService.updateSubjectAllocation(id, validatedData);
@@ -108,23 +89,17 @@ export const updateSubjectAllocation = asyncHandler(
   }
 );
 
-/**
- * @description Soft deletes a subject allocation.
- * @route DELETE /api/v1/subject-allocations/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const softDeleteSubjectAllocation = asyncHandler(
+  // Soft deletes a subject allocation.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     await subjectAllocationService.softDeleteSubjectAllocation(id);
 
     res.status(204).json({
       status: 'success',
       message: 'Subject allocation soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );

@@ -1,10 +1,13 @@
-// src/services/subject/subject.service.ts
+/**
+ * @file src/services/subject/subject.service.ts
+ * @description Service layer for Subject operations.
+ * Encapsulates business logic, interacts with the Prisma client, and manages a simple cache.
+ */
 
 import { Subject, SubjectType, Prisma } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
 
-// Interface for subject data input
 interface SubjectDataInput {
   name: string;
   abbreviation: string;
@@ -15,23 +18,19 @@ interface SubjectDataInput {
 }
 
 class SubjectService {
-  /**
-   * @dev Retrieves all active subjects.
-   * Includes related department and semester, ensuring they are also active.
-   * @returns Promise<Subject[]> A list of active subject records.
-   */
+  // Retrieves all active subjects.
   public async getAllSubjects(): Promise<Subject[]> {
     try {
       const subjects = await prisma.subject.findMany({
         where: {
           isDeleted: false,
-          department: { isDeleted: false }, // Ensure department is active
-          semester: { isDeleted: false }, // Ensure semester is active
+          department: { isDeleted: false },
+          semester: { isDeleted: false },
         },
         include: {
           department: true,
           semester: true,
-          allocations: { where: { isDeleted: false } }, // Include active allocations
+          allocations: { where: { isDeleted: false } },
         },
       });
       return subjects;
@@ -41,12 +40,7 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Retrieves a single active subject by its ID.
-   * Includes related department, semester, and feedback questions, ensuring they are active.
-   * @param id The UUID of the subject to retrieve.
-   * @returns Promise<Subject | null> The subject record, or null if not found or deleted.
-   */
+  // Retrieves a single active subject by its ID.
   public async getSubjectById(id: string): Promise<Subject | null> {
     try {
       const subject = await prisma.subject.findUnique({
@@ -60,7 +54,7 @@ class SubjectService {
           department: true,
           semester: true,
           allocations: { where: { isDeleted: false } },
-          FeedbackQuestion: { where: { isDeleted: false } }, // Include active feedback questions
+          FeedbackQuestion: { where: { isDeleted: false } },
         },
       });
       return subject;
@@ -73,19 +67,11 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Creates a new subject record.
-   * Validates existence and active status of parent department and semester.
-   * @param data The data for the subject to create.
-   * @returns Promise<Subject> The created subject record.
-   * @throws AppError if related entities (Department, Semester) are not found or are deleted,
-   * or if there's a unique constraint violation.
-   */
+  // Creates a new subject record.
   public async createSubject(data: SubjectDataInput): Promise<Subject> {
     const { name, abbreviation, subjectCode, type, departmentId, semesterId } =
       data;
 
-    // 1. Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -93,7 +79,6 @@ class SubjectService {
       throw new AppError('Department not found or is deleted.', 400);
     }
 
-    // 2. Validate Semester existence and active status
     const existingSemester = await prisma.semester.findUnique({
       where: { id: semesterId, isDeleted: false },
     });
@@ -121,7 +106,6 @@ class SubjectService {
     } catch (error: any) {
       console.error('Error in SubjectService.createSubject:', error);
       if (error.code === 'P2002') {
-        // Unique constraint violation (departmentId_abbreviation)
         throw new AppError(
           `A subject with abbreviation '${abbreviation}' already exists for this department.`,
           409
@@ -131,20 +115,12 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Updates an existing subject record.
-   * Validates existence and active status of parent entities if their IDs are provided in update data.
-   * @param id The UUID of the subject to update.
-   * @param data The partial data to update the subject with.
-   * @returns Promise<Subject> The updated subject record.
-   * @throws AppError if the subject is not found or update fails.
-   */
+  // Updates an existing subject record.
   public async updateSubject(
     id: string,
     data: Partial<SubjectDataInput & { isDeleted?: boolean }>
   ): Promise<Subject> {
     try {
-      // First, check if the subject exists and is not deleted
       const existingSubject = await prisma.subject.findUnique({
         where: { id: id, isDeleted: false },
       });
@@ -153,7 +129,6 @@ class SubjectService {
         throw new AppError('Subject not found or is deleted.', 404);
       }
 
-      // Validate parent entity existence if their IDs are provided in update data
       if (data.departmentId) {
         const existingDepartment = await prisma.department.findUnique({
           where: { id: data.departmentId, isDeleted: false },
@@ -177,14 +152,12 @@ class SubjectService {
         }
       }
 
-      // Destructure the data to separate direct foreign key IDs from other update fields
       const { departmentId, semesterId, ...restOfData } = data;
 
       const updatedSubject = await prisma.subject.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: {
-          ...restOfData, // Spread the rest of the update data
-          // Conditionally connect relations if their IDs are provided
+          ...restOfData,
           department: departmentId
             ? { connect: { id: departmentId } }
             : undefined,
@@ -215,16 +188,11 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Soft deletes a subject by setting its isDeleted flag to true.
-   * @param id The UUID of the subject to soft delete.
-   * @returns Promise<Subject> The soft-deleted subject record.
-   * @throws AppError if the subject is not found.
-   */
+  // Soft deletes a subject.
   public async softDeleteSubject(id: string): Promise<Subject> {
     try {
       const subject = await prisma.subject.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return subject;
@@ -240,16 +208,9 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Retrieves subjects by semester ID, filtering out soft-deleted records.
-   * Ensures the semester itself is active.
-   * @param semesterId The UUID of the semester.
-   * @returns Promise<Subject[]> A list of active subjects for the given semester.
-   * @throws AppError if the semester is not found or is deleted.
-   */
+  // Retrieves subjects by semester ID.
   public async getSubjectsBySemester(semesterId: string): Promise<Subject[]> {
     try {
-      // Validate Semester exists and is not deleted
       const semester = await prisma.semester.findUnique({
         where: { id: semesterId, isDeleted: false },
       });
@@ -263,8 +224,8 @@ class SubjectService {
       const subjects = await prisma.subject.findMany({
         where: {
           semesterId: semesterId,
-          isDeleted: false, // Apply soft deletion filter
-          department: { isDeleted: false }, // Ensure related department is active
+          isDeleted: false,
+          department: { isDeleted: false },
         },
         include: {
           department: true,
@@ -282,19 +243,12 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Retrieves subject abbreviations, optionally filtered by department abbreviation.
-   * Filters out soft-deleted records and ensures related department is active.
-   * @param deptAbbr Optional department abbreviation to filter subjects.
-   * @returns Promise<string[]> An array of unique subject abbreviations.
-   * @throws AppError if the department is not found or is deleted.
-   */
+  // Retrieves subject abbreviations, optionally filtered by department abbreviation.
   public async getSubjectAbbreviations(deptAbbr?: string): Promise<string[]> {
     try {
-      let whereClause: Prisma.SubjectWhereInput = { isDeleted: false }; // Base filter for soft deletion
+      let whereClause: Prisma.SubjectWhereInput = { isDeleted: false };
 
       if (deptAbbr) {
-        // Find the department by abbreviation and ensure it's not deleted
         const department = await prisma.department.findFirst({
           where: { abbreviation: deptAbbr.toUpperCase(), isDeleted: false },
         });
@@ -313,7 +267,6 @@ class SubjectService {
         select: { abbreviation: true },
       });
 
-      // Ensure abbreviations are unique and return them
       const abbreviations = Array.from(
         new Set(subjects.map((s) => s.abbreviation))
       );
@@ -324,19 +277,12 @@ class SubjectService {
     }
   }
 
-  /**
-   * @dev Creates multiple subject records in a single transaction.
-   * Validates existence and active status of parent entities for each subject.
-   * @param subjectsData An array of subject data objects to create.
-   * @returns Promise<Subject[]> An array of the created subject records.
-   * @throws AppError if any subject creation/update fails due to invalid parent IDs or unique constraints.
-   */
+  // Creates multiple subject records in a single transaction.
   public async batchCreateSubjects(
     subjectsData: SubjectDataInput[]
   ): Promise<Subject[]> {
     const results: Subject[] = [];
 
-    // Pre-validate all department and semester IDs to avoid partial transactions
     const departmentIds = Array.from(
       new Set(subjectsData.map((s) => s.departmentId))
     );
@@ -375,7 +321,6 @@ class SubjectService {
       const transactionResults = await prisma.$transaction(
         subjectsData.map((subjectData) => {
           return prisma.subject.upsert({
-            // Using upsert as per original logic
             where: {
               departmentId_abbreviation: {
                 departmentId: subjectData.departmentId,
@@ -391,7 +336,7 @@ class SubjectService {
               semester: { connect: { id: subjectData.semesterId } },
             },
             update: {
-              isDeleted: false, // Ensure it's active if upserting an existing one
+              isDeleted: false,
               name: subjectData.name,
               subjectCode: subjectData.subjectCode,
               type: subjectData.type,
@@ -406,7 +351,7 @@ class SubjectService {
           });
         })
       );
-      results.push(...transactionResults); // Collect results from transaction
+      results.push(...transactionResults);
       return results;
     } catch (error: any) {
       console.error('Error in SubjectService.batchCreateSubjects:', error);
@@ -416,7 +361,6 @@ class SubjectService {
           409
         );
       }
-      // P2025: Not found error for related records (though pre-validated, good to have fallback for other issues)
       if (error.code === 'P2025') {
         throw new AppError(
           `One or more related records (Department, Semester) not found for a subject in the batch.`,

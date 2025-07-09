@@ -5,15 +5,13 @@
 
 import { z } from 'zod';
 
-// Schema for creating a new division
+// Schema for creating a new division.
 export const createDivisionSchema = z.object({
   departmentId: z
     .string()
     .uuid('Invalid department ID format. Must be a UUID.'),
   semesterId: z.string().uuid('Invalid semester ID format. Must be a UUID.'),
   divisionName: z.string().min(1, 'Division name is required.'),
-  // studentCount is derived, so it's not expected in the input for creation,
-  // but we can allow it for flexibility if the frontend sends it (though it will be overridden).
   studentCount: z
     .number()
     .int()
@@ -21,7 +19,7 @@ export const createDivisionSchema = z.object({
     .optional(),
 });
 
-// Schema for updating an existing division
+// Schema for updating an existing division.
 export const updateDivisionSchema = z
   .object({
     departmentId: z.string().uuid('Invalid department ID format.').optional(),
@@ -38,7 +36,7 @@ export const updateDivisionSchema = z
   })
   .refine(
     (data) => {
-      // Ensure at least one field is provided for update
+      // Ensures at least one field is provided for update.
       if (Object.keys(data).length === 0) {
         throw new z.ZodError([
           {
@@ -57,7 +55,7 @@ export const updateDivisionSchema = z
     }
   );
 
-// Schema for query parameters when getting divisions
+// Schema for query parameters when getting divisions.
 export const getDivisionsQuerySchema = z
   .object({
     departmentId: z.string().uuid('Invalid department ID format.').optional(),
@@ -65,7 +63,7 @@ export const getDivisionsQuerySchema = z
   })
   .refine(
     (data) => {
-      // Require both or neither for filtering
+      // Requires both or neither for filtering.
       if (
         (data.departmentId && !data.semesterId) ||
         (!data.departmentId && data.semesterId)
@@ -88,12 +86,12 @@ export const getDivisionsQuerySchema = z
     }
   );
 
-// Schema for batch creating divisions
+// Schema for batch creating divisions.
 export const batchCreateDivisionsSchema = z.object({
-  divisions: z.array(createDivisionSchema), // Array of createDivisionSchema objects
+  divisions: z.array(createDivisionSchema),
 });
 
-// Schema for ID parameter validation
+// Schema for ID parameter validation.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });

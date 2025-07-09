@@ -1,4 +1,8 @@
-// src/services/overrideStudents/overrideStudents.service.ts
+/**
+ * @file src/services/overrideStudents/overrideStudents.service.ts
+ * @description Service layer for Override Student operations.
+ * Handles student data upload, retrieval, and management for specific feedback forms.
+ */
 
 import { OverrideStudent, FeedbackFormOverride } from '@prisma/client';
 import ExcelJS from 'exceljs';
@@ -41,12 +45,7 @@ interface PaginatedOverrideStudents {
 }
 
 class OverrideStudentsService {
-  /**
-   * @dev Extracts the string value from an ExcelJS cell, handling rich text and hyperlinks.
-   * @param {ExcelJS.Cell} cell - The ExcelJS cell object.
-   * @returns {string} The string representation of the cell's value.
-   * @private
-   */
+  // Extracts the string value from an ExcelJS cell.
   private getCellValue(cell: ExcelJS.Cell): string {
     const value = cell.value;
     if (
@@ -55,18 +54,12 @@ class OverrideStudentsService {
       'hyperlink' in value &&
       'text' in value
     ) {
-      return value.text?.toString() || ''; // For hyperlink cells, use the text
+      return value.text?.toString() || '';
     }
-    return value?.toString() || ''; // Convert other values to string
+    return value?.toString() || '';
   }
 
-  /**
-   * @dev Validates that a feedback form exists and is not deleted.
-   * @param formId The UUID of the feedback form.
-   * @returns Promise<void>
-   * @throws AppError if the form is not found or is deleted.
-   * @private
-   */
+  // Validates that a feedback form exists and is not deleted.
   private async validateFeedbackForm(formId: string): Promise<void> {
     const form = await prisma.feedbackForm.findUnique({
       where: { id: formId, isDeleted: false },
@@ -77,14 +70,7 @@ class OverrideStudentsService {
     }
   }
 
-  /**
-   * @dev Ensures that a FeedbackFormOverride record exists for the given form.
-   * Creates one if it doesn't exist.
-   * @param formId The UUID of the feedback form.
-   * @param uploadedBy The ID of the admin who uploaded the students.
-   * @returns Promise<FeedbackFormOverride>
-   * @private
-   */
+  // Ensures that a FeedbackFormOverride record exists for the given form.
   private async ensureFeedbackFormOverride(
     formId: string,
     uploadedBy: string
@@ -106,15 +92,7 @@ class OverrideStudentsService {
     return override;
   }
 
-  /**
-   * @description Processes an Excel/CSV file containing override student data.
-   * Creates override student records for the specified feedback form.
-   * @param formId The UUID of the feedback form.
-   * @param fileBuffer The buffer of the uploaded Excel/CSV file.
-   * @param uploadedBy The ID of the admin who uploaded the file.
-   * @returns Promise<OverrideStudentUploadResult>
-   * @throws AppError if file processing fails or form is not found.
-   */
+  // Processes an Excel/CSV file containing override student data.
   public async uploadOverrideStudents(
     formId: string,
     fileBuffer: Buffer,
@@ -125,16 +103,13 @@ class OverrideStudentsService {
     let skippedCount = 0;
 
     try {
-      // Validate that the feedback form exists
       await this.validateFeedbackForm(formId);
 
-      // Ensure FeedbackFormOverride record exists
       const override = await this.ensureFeedbackFormOverride(
         formId,
         uploadedBy
       );
 
-      // Clear any existing override students for this form
       await prisma.overrideStudent.updateMany({
         where: { feedbackFormOverrideId: override.id },
         data: { isDeleted: true },
@@ -151,19 +126,15 @@ class OverrideStudentsService {
         );
       }
 
-      // Track emails to prevent duplicates within the same upload
       const emailSet = new Set<string>();
 
-      // Iterate over rows, starting from the second row (assuming first is header)
       for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber);
 
-        // Skip empty rows
         if (!row.hasValues) {
           continue;
         }
 
-        // Extract raw cell values
         const rawData = {
           studentName: this.getCellValue(row.getCell(1)),
           email: this.getCellValue(row.getCell(2)),
@@ -174,7 +145,6 @@ class OverrideStudentsService {
           semester: this.getCellValue(row.getCell(7)),
         };
 
-        // Validate row data using Zod
         const validationResult =
           overrideStudentExcelRowSchema.safeParse(rawData);
 
@@ -201,7 +171,6 @@ class OverrideStudentsService {
         } = validatedData;
 
         try {
-          // Check for duplicate email within this upload
           if (emailSet.has(email)) {
             const message = `Row ${rowNumber}: Skipping duplicate email '${email}' within the same upload.`;
             console.warn(message);
@@ -210,7 +179,6 @@ class OverrideStudentsService {
             continue;
           }
 
-          // Check if email already exists for this override
           const existingOverrideStudent =
             await prisma.overrideStudent.findUnique({
               where: {
@@ -229,12 +197,9 @@ class OverrideStudentsService {
             continue;
           }
 
-          // Add email to set to track duplicates
           emailSet.add(email);
 
-          // Create or restore the override student
           if (existingOverrideStudent && existingOverrideStudent.isDeleted) {
-            // Restore and update the soft-deleted record
             await prisma.overrideStudent.update({
               where: { id: existingOverrideStudent.id },
               data: {
@@ -249,7 +214,6 @@ class OverrideStudentsService {
             });
             addedRows++;
           } else {
-            // Create a new override student
             await prisma.overrideStudent.create({
               data: {
                 feedbackFormOverrideId: override.id,
@@ -291,22 +255,14 @@ class OverrideStudentsService {
     }
   }
 
-  /**
-   * @description Retrieves all override students for a specific feedback form with pagination.
-   * @param formId The UUID of the feedback form.
-   * @param options Pagination options.
-   * @returns Promise<PaginatedOverrideStudents>
-   * @throws AppError if the form is not found.
-   */
+  // Retrieves all override students for a specific feedback form with pagination.
   public async getOverrideStudents(
     formId: string,
     options: PaginationOptions
   ): Promise<PaginatedOverrideStudents> {
     try {
-      // Validate that the feedback form exists
       await this.validateFeedbackForm(formId);
 
-      // Find the override record for this form
       const override = await prisma.feedbackFormOverride.findFirst({
         where: { feedbackFormId: formId, isDeleted: false },
       });
@@ -328,7 +284,6 @@ class OverrideStudentsService {
       const { page, limit } = options;
       const skip = (page - 1) * limit;
 
-      // Get total count
       const total = await prisma.overrideStudent.count({
         where: {
           feedbackFormOverrideId: override.id,
@@ -336,7 +291,6 @@ class OverrideStudentsService {
         },
       });
 
-      // Get paginated students
       const students = await prisma.overrideStudent.findMany({
         where: {
           feedbackFormOverrideId: override.id,
@@ -372,20 +326,13 @@ class OverrideStudentsService {
     }
   }
 
-  /**
-   * @description Retrieves all override students for a specific feedback form without pagination.
-   * @param formId The UUID of the feedback form.
-   * @returns Promise<OverrideStudent[]>
-   * @throws AppError if the form is not found.
-   */
+  // Retrieves all override students for a specific feedback form without pagination.
   public async getAllOverrideStudents(
     formId: string
   ): Promise<OverrideStudent[]> {
     try {
-      // Validate that the feedback form exists
       await this.validateFeedbackForm(formId);
 
-      // Find the override record for this form
       const override = await prisma.feedbackFormOverride.findFirst({
         where: { feedbackFormId: formId, isDeleted: false },
       });
@@ -394,7 +341,6 @@ class OverrideStudentsService {
         return [];
       }
 
-      // Get all students
       const students = await prisma.overrideStudent.findMany({
         where: {
           feedbackFormOverrideId: override.id,
@@ -416,24 +362,15 @@ class OverrideStudentsService {
     }
   }
 
-  /**
-   * @description Updates an override student.
-   * @param formId The UUID of the feedback form.
-   * @param studentId The UUID of the override student.
-   * @param updateData The data to update.
-   * @returns Promise<OverrideStudent>
-   * @throws AppError if the form or student is not found.
-   */
+  // Updates an override student.
   public async updateOverrideStudent(
     formId: string,
     studentId: string,
     updateData: UpdateOverrideStudentInput
   ): Promise<OverrideStudent> {
     try {
-      // Validate that the feedback form exists
       await this.validateFeedbackForm(formId);
 
-      // Find the override record for this form
       const override = await prisma.feedbackFormOverride.findFirst({
         where: { feedbackFormId: formId, isDeleted: false },
       });
@@ -442,7 +379,6 @@ class OverrideStudentsService {
         throw new AppError('No override students found for this form.', 404);
       }
 
-      // Validate that the override student exists
       const existingStudent = await prisma.overrideStudent.findUnique({
         where: {
           id: studentId,
@@ -455,7 +391,6 @@ class OverrideStudentsService {
         throw new AppError('Override student not found.', 404);
       }
 
-      // Check for email uniqueness if email is being updated
       if (updateData.email && updateData.email !== existingStudent.email) {
         const duplicateEmail = await prisma.overrideStudent.findUnique({
           where: {
@@ -474,7 +409,6 @@ class OverrideStudentsService {
         }
       }
 
-      // Update the student
       const updatedStudent = await prisma.overrideStudent.update({
         where: { id: studentId },
         data: updateData,
@@ -493,22 +427,14 @@ class OverrideStudentsService {
     }
   }
 
-  /**
-   * @description Deletes an override student (soft delete).
-   * @param formId The UUID of the feedback form.
-   * @param studentId The UUID of the override student.
-   * @returns Promise<void>
-   * @throws AppError if the form or student is not found.
-   */
+  // Deletes an override student (soft delete).
   public async deleteOverrideStudent(
     formId: string,
     studentId: string
   ): Promise<void> {
     try {
-      // Validate that the feedback form exists
       await this.validateFeedbackForm(formId);
 
-      // Find the override record for this form
       const override = await prisma.feedbackFormOverride.findFirst({
         where: { feedbackFormId: formId, isDeleted: false },
       });
@@ -517,7 +443,6 @@ class OverrideStudentsService {
         throw new AppError('No override students found for this form.', 404);
       }
 
-      // Validate that the override student exists
       const existingStudent = await prisma.overrideStudent.findUnique({
         where: {
           id: studentId,
@@ -530,7 +455,6 @@ class OverrideStudentsService {
         throw new AppError('Override student not found.', 404);
       }
 
-      // Soft delete the student
       await prisma.overrideStudent.update({
         where: { id: studentId },
         data: { isDeleted: true },
@@ -547,27 +471,19 @@ class OverrideStudentsService {
     }
   }
 
-  /**
-   * @description Clears all override students for a feedback form.
-   * @param formId The UUID of the feedback form.
-   * @returns Promise<number> Number of students deleted.
-   * @throws AppError if the form is not found.
-   */
+  // Clears all override students for a feedback form.
   public async clearOverrideStudents(formId: string): Promise<number> {
     try {
-      // Validate that the feedback form exists
       await this.validateFeedbackForm(formId);
 
-      // Find the override record for this form
       const override = await prisma.feedbackFormOverride.findFirst({
         where: { feedbackFormId: formId, isDeleted: false },
       });
 
       if (!override) {
-        return 0; // No override students to clear
+        return 0;
       }
 
-      // Count current active students
       const count = await prisma.overrideStudent.count({
         where: {
           feedbackFormOverrideId: override.id,
@@ -575,7 +491,6 @@ class OverrideStudentsService {
         },
       });
 
-      // Soft delete all override students for this form
       await prisma.overrideStudent.updateMany({
         where: {
           feedbackFormOverrideId: override.id,

@@ -1,10 +1,13 @@
-// src/services/feedbackQuestion/feedbackQuestion.service.ts
+/**
+ * @file src/services/feedbackQuestion/feedbackQuestion.service.ts
+ * @description Service layer for Feedback Question operations.
+ * Encapsulates business logic and interacts with the Prisma client.
+ */
 
 import { FeedbackQuestion, QuestionCategory, Prisma } from '@prisma/client';
 import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
-// Interfaces for input data
 interface CreateQuestionCategoryInput {
   categoryName: string;
   description: string;
@@ -22,7 +25,7 @@ interface CreateFeedbackQuestionInput {
   subjectId: string;
   batch?: string;
   text: string;
-  type: string; // Assuming string type for now, adjust if it's an enum
+  type: string;
   isRequired?: boolean;
   displayOrder: number;
 }
@@ -33,17 +36,12 @@ interface UpdateFeedbackQuestionInput
 }
 
 class FeedbackQuestionService {
-  // --- Question Category Operations ---
-
-  /**
-   * @dev Retrieves all active question categories.
-   * @returns Promise<QuestionCategory[]> A list of active question category records.
-   */
+  // Retrieves all active question categories.
   public async getAllQuestionCategories(): Promise<QuestionCategory[]> {
     try {
       const categories = await prisma.questionCategory.findMany({
         where: { isDeleted: false },
-        include: { questions: { where: { isDeleted: false } } }, // Include active questions
+        include: { questions: { where: { isDeleted: false } } },
       });
       return categories;
     } catch (error: any) {
@@ -55,11 +53,7 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Retrieves a single active question category by its ID.
-   * @param id The UUID of the category to retrieve.
-   * @returns Promise<QuestionCategory | null> The category record, or null if not found or deleted.
-   */
+  // Retrieves a single active question category by its ID.
   public async getQuestionCategoryById(
     id: string
   ): Promise<QuestionCategory | null> {
@@ -78,12 +72,7 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Creates a new question category.
-   * @param data The data for the new category.
-   * @returns Promise<QuestionCategory> The created category record.
-   * @throws AppError if a category with the same name already exists.
-   */
+  // Creates a new question category.
   public async createQuestionCategory(
     data: CreateQuestionCategoryInput
   ): Promise<QuestionCategory> {
@@ -92,7 +81,7 @@ class FeedbackQuestionService {
         data: {
           categoryName: data.categoryName,
           description: data.description,
-          isDeleted: false, // Ensure it's active on creation
+          isDeleted: false,
         },
       });
       return newCategory;
@@ -111,13 +100,7 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Updates an existing question category.
-   * @param id The UUID of the category to update.
-   * @param data The partial data to update the category with.
-   * @returns Promise<QuestionCategory> The updated category record.
-   * @throws AppError if the category is not found or update fails.
-   */
+  // Updates an existing question category.
   public async updateQuestionCategory(
     id: string,
     data: UpdateQuestionCategoryInput
@@ -131,7 +114,7 @@ class FeedbackQuestionService {
       }
 
       const updatedCategory = await prisma.questionCategory.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: data,
       });
       return updatedCategory;
@@ -153,19 +136,12 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Soft deletes a question category by setting its isDeleted flag to true.
-   * Also soft deletes all associated feedback questions.
-   * @param id The UUID of the category to soft delete.
-   * @returns Promise<QuestionCategory> The soft-deleted category record.
-   * @throws AppError if the category is not found.
-   */
+  // Soft deletes a question category and all associated feedback questions.
   public async softDeleteQuestionCategory(
     id: string
   ): Promise<QuestionCategory> {
     try {
       const category = await prisma.$transaction(async (tx) => {
-        // 1. Soft delete the category itself
         const deletedCategory = await tx.questionCategory.update({
           where: { id: id, isDeleted: false },
           data: { isDeleted: true },
@@ -175,15 +151,10 @@ class FeedbackQuestionService {
           throw new AppError('Question category not found for deletion.', 404);
         }
 
-        // 2. Soft delete all associated feedback questions
         await tx.feedbackQuestion.updateMany({
           where: { categoryId: id, isDeleted: false },
           data: { isDeleted: true },
         });
-
-        // Optionally, update FeedbackSnapshot if needed, similar to deleteQuestion
-        // This is a design decision based on how granular you want 'deleted' flags.
-        // For now, we'll assume soft-deleting questions is sufficient.
 
         return deletedCategory;
       });
@@ -200,15 +171,7 @@ class FeedbackQuestionService {
     }
   }
 
-  // --- Feedback Question Operations ---
-
-  /**
-   * @dev Creates a new feedback question.
-   * Validates existence and active status of parent form, category, faculty, and subject.
-   * @param data The data for the new feedback question.
-   * @returns Promise<FeedbackQuestion> The created question record.
-   * @throws AppError if related entities are not found or are deleted.
-   */
+  // Creates a new feedback question.
   public async createFeedbackQuestion(
     data: CreateFeedbackQuestionInput
   ): Promise<FeedbackQuestion> {
@@ -224,7 +187,6 @@ class FeedbackQuestionService {
       displayOrder,
     } = data;
 
-    // 1. Validate Form existence and active status
     const existingForm = await prisma.feedbackForm.findUnique({
       where: { id: formId, isDeleted: false },
     });
@@ -232,7 +194,6 @@ class FeedbackQuestionService {
       throw new AppError('Feedback Form not found or is deleted.', 400);
     }
 
-    // 2. Validate Category existence and active status
     const existingCategory = await prisma.questionCategory.findUnique({
       where: { id: categoryId, isDeleted: false },
     });
@@ -240,7 +201,6 @@ class FeedbackQuestionService {
       throw new AppError('Question Category not found or is deleted.', 400);
     }
 
-    // 3. Validate Faculty existence and active status
     const existingFaculty = await prisma.faculty.findUnique({
       where: { id: facultyId, isDeleted: false },
     });
@@ -248,7 +208,6 @@ class FeedbackQuestionService {
       throw new AppError('Faculty not found or is deleted.', 400);
     }
 
-    // 4. Validate Subject existence and active status
     const existingSubject = await prisma.subject.findUnique({
       where: { id: subjectId, isDeleted: false },
     });
@@ -268,7 +227,7 @@ class FeedbackQuestionService {
           type,
           isRequired,
           displayOrder,
-          isDeleted: false, // Explicitly set to false on creation
+          isDeleted: false,
         },
         include: {
           form: true,
@@ -283,19 +242,11 @@ class FeedbackQuestionService {
         'Error in FeedbackQuestionService.createFeedbackQuestion:',
         error
       );
-      // No unique constraint on FeedbackQuestion itself, so no P2002 mapping here.
       throw new AppError('Failed to create feedback question.', 500);
     }
   }
 
-  /**
-   * @dev Updates an existing feedback question.
-   * Validates existence and active status of parent entities if their IDs are provided in update data.
-   * @param id The UUID of the question to update.
-   * @param data The partial data to update the question with.
-   * @returns Promise<FeedbackQuestion> The updated question record.
-   * @throws AppError if the question is not found or update fails.
-   */
+  // Updates an existing feedback question.
   public async updateFeedbackQuestion(
     id: string,
     data: UpdateFeedbackQuestionInput
@@ -310,7 +261,6 @@ class FeedbackQuestionService {
 
       const dataToUpdate: Prisma.FeedbackQuestionUpdateInput = { ...data };
 
-      // Handle related entity updates
       if (data.formId) {
         const form = await prisma.feedbackForm.findUnique({
           where: { id: data.formId, isDeleted: false },
@@ -356,7 +306,6 @@ class FeedbackQuestionService {
         dataToUpdate.subject = { connect: { id: data.subjectId } };
       }
 
-      // Remove the original ID fields from dataToUpdate if they were used for connection logic
       delete (dataToUpdate as any).formId;
       delete (dataToUpdate as any).categoryId;
       delete (dataToUpdate as any).facultyId;
@@ -385,19 +334,12 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Soft deletes a feedback question by setting its isDeleted flag to true.
-   * Also soft deletes associated StudentResponses and updates FeedbackSnapshots.
-   * @param id The UUID of the question to soft delete.
-   * @returns Promise<FeedbackQuestion> The soft-deleted question record.
-   * @throws AppError if the question is not found.
-   */
+  // Soft deletes a feedback question and associated student responses and snapshots.
   public async softDeleteFeedbackQuestion(
     id: string
   ): Promise<FeedbackQuestion> {
     try {
       const question = await prisma.$transaction(async (tx) => {
-        // 1. Soft delete the FeedbackQuestion record
         const deletedQuestion = await tx.feedbackQuestion.update({
           where: { id: id, isDeleted: false },
           data: { isDeleted: true },
@@ -407,19 +349,15 @@ class FeedbackQuestionService {
           throw new AppError('Feedback question not found for deletion.', 404);
         }
 
-        // 2. Soft delete all associated StudentResponses
         await tx.studentResponse.updateMany({
           where: { questionId: id, isDeleted: false },
           data: { isDeleted: true },
         });
 
-        // 3. Update all FeedbackSnapshot entries linked to this question or its responses
-        // Assuming 'formDeleted' can also signify question deletion contextually for snapshot.
-        // If a more granular flag is needed, add 'questionDeleted' to FeedbackSnapshot model.
         await tx.feedbackSnapshot.updateMany({
           where: {
             OR: [
-              { questionId: id }, // Direct link to the question being soft-deleted
+              { questionId: id },
               {
                 originalStudentResponseId: {
                   in: (
@@ -429,11 +367,11 @@ class FeedbackQuestionService {
                     })
                   ).map((sr) => sr.id),
                 },
-              }, // Link via original StudentResponse
+              },
             ],
           },
           data: {
-            formDeleted: true, // Mark as deleted (contextually, the question is affected)
+            formDeleted: true,
           },
         });
 
@@ -452,19 +390,11 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Retrieves active feedback questions by form ID.
-   * Includes related faculty, subject, and category, ensuring they are active.
-   * Orders questions by displayOrder ascending.
-   * @param formId The UUID of the form.
-   * @returns Promise<FeedbackQuestion[]> A list of active questions for the given form.
-   * @throws AppError if the form is not found or is deleted.
-   */
+  // Retrieves active feedback questions by form ID.
   public async getFeedbackQuestionsByFormId(
     formId: string
   ): Promise<FeedbackQuestion[]> {
     try {
-      // Validate Form existence and active status
       const existingForm = await prisma.feedbackForm.findUnique({
         where: { id: formId, isDeleted: false },
       });
@@ -475,7 +405,7 @@ class FeedbackQuestionService {
       const questions = await prisma.feedbackQuestion.findMany({
         where: {
           formId: formId,
-          isDeleted: false, // Only fetch questions that are not soft-deleted
+          isDeleted: false,
           category: { isDeleted: false },
           faculty: { isDeleted: false },
           subject: { isDeleted: false },
@@ -502,13 +432,7 @@ class FeedbackQuestionService {
     }
   }
 
-  /**
-   * @dev Performs a batch update of feedback questions.
-   * Ensures questions exist and are active, and validates related entities if their IDs are updated.
-   * @param questionsData An array of question data objects to update.
-   * @returns Promise<FeedbackQuestion[]> An array of the updated question records.
-   * @throws AppError if any question update fails due to invalid IDs or related entities.
-   */
+  // Performs a batch update of feedback questions.
   public async batchUpdateFeedbackQuestions(
     questionsData: Array<{ id: string } & Partial<CreateFeedbackQuestionInput>>
   ): Promise<FeedbackQuestion[]> {
@@ -530,15 +454,19 @@ class FeedbackQuestionService {
             ...restOfData,
           };
 
-          // Conditionally connect relations if their IDs are provided
           if (formId) dataToUpdate.form = { connect: { id: formId } };
           if (categoryId)
             dataToUpdate.category = { connect: { id: categoryId } };
           if (facultyId) dataToUpdate.faculty = { connect: { id: facultyId } };
           if (subjectId) dataToUpdate.subject = { connect: { id: subjectId } };
 
+          delete (dataToUpdate as any).formId;
+          delete (dataToUpdate as any).categoryId;
+          delete (dataToUpdate as any).facultyId;
+          delete (dataToUpdate as any).subjectId;
+
           return prisma.feedbackQuestion.update({
-            where: { id: id, isDeleted: false }, // Only update if not soft-deleted
+            where: { id: id, isDeleted: false },
             data: dataToUpdate,
             include: {
               form: true,

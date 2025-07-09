@@ -23,7 +23,6 @@ import uploadRoutes from './upload/upload.routes';
 import dashboardRoutes from './dashboard/dashboard.routes';
 import academicStructureRoutes from './common/academicStructure.routes';
 import analyticsRoutes from './analytics/analytics.routes';
-import visualAnalyticsRoutes from './analytics/visualAnalytics.routes';
 import emailRoutes from './email/email.routes';
 
 const router = Router();
@@ -47,7 +46,6 @@ router.use('/upload', uploadRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/academic-structure', academicStructureRoutes);
 router.use('/analytics', analyticsRoutes);
-router.use('/analytics/visual', visualAnalyticsRoutes);
 router.use('/emails', emailRoutes);
 
 export default router;

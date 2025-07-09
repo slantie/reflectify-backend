@@ -11,13 +11,7 @@ import { generateAuthToken } from '../../utils/jwt';
 import { hashPassword, comparePassword } from '../../utils/hash';
 
 class AuthService {
-  /**
-   * Creates a new admin (regular or super).
-   * @param data - Admin registration data (name, email, password, designation).
-   * @param isSuper - Boolean indicating if the admin is a super admin.
-   * @returns The created Admin object (excluding password) and a JWT token.
-   * @throws AppError if email already exists or if super admin already exists.
-   */
+  // Creates a new admin (regular or super).
   public async createAdmin(
     data: {
       name: string;
@@ -83,13 +77,7 @@ class AuthService {
     return { admin: adminWithoutPassword, token };
   }
 
-  /**
-   * Authenticates an admin and provides a JWT token.
-   * @param email - The admin's email.
-   * @param password - The admin's plain text password.
-   * @returns The authenticated Admin object (excluding password) and a JWT token.
-   * @throws AppError if credentials are invalid or admin is soft-deleted.
-   */
+  // Authenticates an admin and provides a JWT token.
   public async loginAdmin(
     email: string,
     password: string
@@ -118,12 +106,7 @@ class AuthService {
     return { admin: adminWithoutPassword, token };
   }
 
-  /**
-   * Retrieves an admin's profile by ID.
-   * @param adminId - The ID of the admin.
-   * @returns The Admin object (excluding password).
-   * @throws AppError if admin is not found or is soft-deleted.
-   */
+  // Retrieves an admin's profile by ID.
   public async getAdminProfile(
     adminId: string
   ): Promise<Omit<Admin, 'password'>> {
@@ -147,14 +130,7 @@ class AuthService {
     return admin;
   }
 
-  /**
-   * Updates an admin's password.
-   * @param adminId - The ID of the admin whose password is to be updated.
-   * @param currentPassword - The current plain text password.
-   * @param newPassword - The new plain text password.
-   * @returns A success message.
-   * @throws AppError if admin not found, current password is incorrect, or admin is soft-deleted.
-   */
+  // Updates an admin's password.
   public async updateAdminPassword(
     adminId: string,
     currentPassword: string,
@@ -187,4 +163,5 @@ class AuthService {
   }
 }
 
+// Export an instance of the service to be used across the application (singleton pattern)
 export const authService = new AuthService();

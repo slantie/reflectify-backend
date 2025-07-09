@@ -1,4 +1,8 @@
-// src/services/feedbackForm/feedbackForm.service.ts
+/**
+ * @file src/services/feedbackForm/feedbackForm.service.ts
+ * @description Service layer for sending feedback form access emails.
+ * Handles email transporter setup, token generation, and database interaction for form access.
+ */
 
 import {
   FeedbackForm,
@@ -11,7 +15,6 @@ import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 import { emailService } from '../email/email.service';
 
-// Interfaces for input data
 interface SemesterSelection {
   id: string;
   divisions: string[];
@@ -36,8 +39,8 @@ interface AddQuestionToFormInput {
 interface UpdateFormInput {
   title?: string;
   status?: FormStatus;
-  startDate?: string; // ISO 8601 string
-  endDate?: string; // ISO 8601 string
+  startDate?: string;
+  endDate?: string;
   isDeleted?: boolean;
 }
 
@@ -55,11 +58,7 @@ interface BulkUpdateFormStatusInput {
 }
 
 class FeedbackFormService {
-  /**
-   * @dev Ensures essential question categories exist in the database.
-   * This is called during form generation to guarantee category IDs are valid.
-   * @private
-   */
+  // Ensures essential question categories exist.
   private async ensureQuestionCategories(): Promise<void> {
     const categories = [
       {
@@ -78,37 +77,22 @@ class FeedbackFormService {
       await prisma.questionCategory.upsert({
         where: { id: category.id },
         update: {},
-        create: { ...category, isDeleted: false }, // Ensure isDeleted is false on creation
+        create: { ...category, isDeleted: false },
       });
     }
   }
 
-  /**
-   * @dev Generates a dynamic title for a feedback form based on division.
-   * @param division The division object (expected to have a 'divisionName' property).
-   * @returns string The generated form title.
-   * @private
-   */
+  // Generates a dynamic title for a feedback form.
   private generateFormTitle(division: Division): string {
-    // Corrected: Using 'divisionName' as per Prisma's Division model
     return `Student Feedback Form - ${division.divisionName}`;
   }
 
-  /**
-   * @dev Generates a random alphanumeric hash for form access.
-   * @returns string The generated hash.
-   * @private
-   */
+  // Generates a random alphanumeric hash for form access.
   private generateHash(): string {
     return Math.random().toString(36).substring(2, 15);
   }
 
-  /**
-   * @dev Generates feedback questions based on subject allocations.
-   * @param allocations An array of subject allocation objects.
-   * @returns Prisma.FeedbackQuestionCreateManyFormInput[] An array of question creation data.
-   * @private
-   */
+  // Generates feedback questions based on subject allocations.
   private generateQuestionsForAllSubjects(
     allocations: (SubjectAllocation & {
       faculty: { id: string; name: string };
@@ -134,32 +118,25 @@ class FeedbackFormService {
         subjectId: allocation.subject.id,
         batch: batchValue,
         text: `Rate Prof. ${allocation.faculty.name} in Subject: ${allocation.subject.name} (${sessionType}) - ${batchValue}`,
-        type: 'rating', // Hardcoded as 'rating' based on original logic
+        type: 'rating',
         isRequired: true,
         displayOrder: displayOrder++,
-        isDeleted: false, // Explicitly set to false on creation
+        isDeleted: false,
       });
     });
 
     return questions;
   }
 
-  /**
-   * @dev Generates feedback forms based on department and selected semesters/divisions.
-   * This involves looking up subject allocations and creating forms with associated questions.
-   * @param requestData The data for form generation.
-   * @returns Promise<FeedbackForm[]> An array of generated feedback forms.
-   * @throws AppError if any required related entities are not found or are deleted.
-   */
+  // Generates feedback forms based on department and selected semesters/divisions.
   public async generateForms(
     requestData: FormGenerationRequest
   ): Promise<FeedbackForm[]> {
-    await this.ensureQuestionCategories(); // Ensure categories exist
+    await this.ensureQuestionCategories();
 
     const { departmentId, selectedSemesters } = requestData;
     const generatedForms: FeedbackForm[] = [];
 
-    // Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -168,7 +145,6 @@ class FeedbackFormService {
     }
 
     for (const semester of selectedSemesters) {
-      // Validate Semester existence and active status
       const existingSemester = await prisma.semester.findUnique({
         where: { id: semester.id, isDeleted: false },
       });
@@ -180,10 +156,9 @@ class FeedbackFormService {
       }
 
       for (const divisionId of semester.divisions) {
-        // Validate Division existence and active status
         const existingDivision = await prisma.division.findUnique({
           where: { id: divisionId, isDeleted: false },
-          include: { semester: true, department: true }, // Include for title generation
+          include: { semester: true, department: true },
         });
         if (!existingDivision) {
           throw new AppError(
@@ -196,8 +171,8 @@ class FeedbackFormService {
           where: {
             divisionId,
             semesterId: semester.id,
-            isDeleted: false, // Only active allocations
-            faculty: { isDeleted: false }, // Ensure related entities are active
+            isDeleted: false,
+            faculty: { isDeleted: false },
             subject: { isDeleted: false },
             OR: [{ lectureType: 'LECTURE' }, { lectureType: 'LAB' }],
           },
@@ -212,21 +187,20 @@ class FeedbackFormService {
           console.warn(
             `No active subject allocations found for Division ID ${divisionId} and Semester ID ${semester.id}. Skipping form generation for this combination.`
           );
-          continue; // Skip if no allocations found
+          continue;
         }
 
-        // Use the first allocation for form title and subjectAllocationId, as per original logic
         const firstAllocation = allocations[0];
 
         try {
           const form = await prisma.feedbackForm.create({
             data: {
               division: { connect: { id: divisionId } },
-              subjectAllocation: { connect: { id: firstAllocation.id } }, // Connect to the first allocation
-              title: this.generateFormTitle(existingDivision), // Use validated division
+              subjectAllocation: { connect: { id: firstAllocation.id } },
+              title: this.generateFormTitle(existingDivision),
               status: 'DRAFT',
               startDate: new Date(),
-              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+              endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
               accessHash: this.generateHash(),
               isDeleted: false,
               questions: {
@@ -249,7 +223,6 @@ class FeedbackFormService {
             `Error creating form for Division ${divisionId}, Semester ${semester.id}:`,
             error
           );
-          // Corrected: Using 'divisionName' and 'semesterNumber' as per Prisma's Division and Semester models
           throw new AppError(
             `Failed to generate form for division ${existingDivision.divisionName} in semester ${existingSemester.semesterNumber}.`,
             500
@@ -260,21 +233,17 @@ class FeedbackFormService {
     return generatedForms;
   }
 
-  /**
-   * @dev Retrieves all active feedback forms.
-   * Includes related questions, division, and subject allocation details.
-   * @returns Promise<FeedbackForm[]> A list of active feedback forms.
-   */
+  // Retrieves all active feedback forms.
   public async getAllForms(): Promise<FeedbackForm[]> {
     try {
       const forms = await prisma.feedbackForm.findMany({
         where: {
           isDeleted: false,
           division: { isDeleted: false },
-          subjectAllocation: { isDeleted: false }, // Ensure related entities are active
+          subjectAllocation: { isDeleted: false },
         },
         include: {
-          questions: { where: { isDeleted: false } }, // Only active questions
+          questions: { where: { isDeleted: false } },
           division: true,
           subjectAllocation: {
             include: {
@@ -291,12 +260,7 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Retrieves a single active feedback form by its ID.
-   * Includes related questions, division, and subject allocation details.
-   * @param id The UUID of the form to retrieve.
-   * @returns Promise<FeedbackForm | null> The feedback form record, or null if not found or deleted.
-   */
+  // Retrieves a single active feedback form by its ID.
   public async getFormById(id: string): Promise<FeedbackForm | null> {
     try {
       const form = await prisma.feedbackForm.findUnique({
@@ -308,7 +272,7 @@ class FeedbackFormService {
         },
         include: {
           questions: {
-            where: { isDeleted: false }, // Only active questions
+            where: { isDeleted: false },
             include: {
               faculty: true,
               subject: true,
@@ -316,7 +280,7 @@ class FeedbackFormService {
             },
           },
           division: true,
-          subjectAllocation: true, // Include subject allocation directly
+          subjectAllocation: true,
         },
       });
       return form;
@@ -329,13 +293,7 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Updates an existing feedback form.
-   * @param id The UUID of the form to update.
-   * @param data The partial data to update the form with.
-   * @returns Promise<FeedbackForm> The updated feedback form record.
-   * @throws AppError if the form is not found or update fails.
-   */
+  // Updates an existing feedback form.
   public async updateForm(
     id: string,
     data: UpdateFormInput
@@ -366,7 +324,7 @@ class FeedbackFormService {
               category: true,
             },
           },
-          division: true, // Include division for consistency
+          division: true,
         },
       });
       return updatedForm;
@@ -382,23 +340,15 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Soft deletes a feedback form by setting its isDeleted flag to true.
-   * Cascades soft deletion to associated questions and student responses,
-   * and marks related feedback snapshots as form deleted.
-   * @param id The UUID of the form to soft delete.
-   * @returns Promise<FeedbackForm> The soft-deleted form record.
-   * @throws AppError if the form is not found.
-   */
+  // Soft deletes a feedback form and cascades deletion to related entities.
   public async softDeleteForm(id: string): Promise<FeedbackForm> {
     try {
       const form = await prisma.$transaction(async (tx) => {
-        // 1. Soft delete the FeedbackForm record
         const deletedForm = await tx.feedbackForm.update({
           where: { id: id, isDeleted: false },
           data: {
             isDeleted: true,
-            status: 'CLOSED', // Set status to CLOSED when soft-deleted
+            status: 'CLOSED',
           },
         });
 
@@ -406,19 +356,16 @@ class FeedbackFormService {
           throw new AppError('Feedback form not found for deletion.', 404);
         }
 
-        // 2. Soft delete related FeedbackQuestions
         await tx.feedbackQuestion.updateMany({
           where: { formId: id, isDeleted: false },
           data: { isDeleted: true },
         });
 
-        // 3. Soft delete related StudentResponses
         await tx.studentResponse.updateMany({
           where: { feedbackFormId: id, isDeleted: false },
           data: { isDeleted: true },
         });
 
-        // 4. Update all FeedbackSnapshot entries linked to this form or its responses
         await tx.feedbackSnapshot.updateMany({
           where: {
             OR: [
@@ -455,13 +402,7 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Adds a new question to an existing feedback form.
-   * @param formId The UUID of the form to add the question to.
-   * @param questionData The data for the new question.
-   * @returns Promise<FeedbackForm> The updated feedback form with the new question.
-   * @throws AppError if the form or related entities are not found or are deleted.
-   */
+  // Adds a new question to an existing feedback form.
   public async addQuestionToForm(
     formId: string,
     questionData: AddQuestionToFormInput
@@ -477,7 +418,6 @@ class FeedbackFormService {
       displayOrder,
     } = questionData;
 
-    // 1. Validate Form existence and active status
     const existingForm = await prisma.feedbackForm.findUnique({
       where: { id: formId, isDeleted: false },
     });
@@ -485,7 +425,6 @@ class FeedbackFormService {
       throw new AppError('Feedback Form not found or is deleted.', 404);
     }
 
-    // 2. Validate Category existence and active status
     const existingCategory = await prisma.questionCategory.findUnique({
       where: { id: categoryId, isDeleted: false },
     });
@@ -493,7 +432,6 @@ class FeedbackFormService {
       throw new AppError('Question Category not found or is deleted.', 400);
     }
 
-    // 3. Validate Faculty existence and active status
     const existingFaculty = await prisma.faculty.findUnique({
       where: { id: facultyId, isDeleted: false },
     });
@@ -501,7 +439,6 @@ class FeedbackFormService {
       throw new AppError('Faculty not found or is deleted.', 400);
     }
 
-    // 4. Validate Subject existence and active status
     const existingSubject = await prisma.subject.findUnique({
       where: { id: subjectId, isDeleted: false },
     });
@@ -547,14 +484,7 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Updates the status and dates of a single feedback form.
-   * Sends access emails if the status becomes 'ACTIVE'.
-   * @param id The UUID of the form to update.
-   * @param data The status and date data.
-   * @returns Promise<FeedbackForm> The updated feedback form.
-   * @throws AppError if the form is not found or update fails.
-   */
+  // Updates the status and dates of a single feedback form.
   public async updateFormStatus(
     id: string,
     data: UpdateFormStatusInput
@@ -585,9 +515,7 @@ class FeedbackFormService {
         },
       });
 
-      // Send emails when form becomes active
       if (updatedForm.status === 'ACTIVE') {
-        // Check if this form has override students first
         console.log(
           `Checking for override students for form ${updatedForm.id}`
         );
@@ -625,13 +553,11 @@ class FeedbackFormService {
           hasOverrideStudents &&
           hasOverrideStudents.overrideStudents.length > 0
         ) {
-          // Send emails to override students
           console.log('Sending emails to override students');
           await emailService.sendFormAccessEmailToOverrideStudents(
             updatedForm.id
           );
         } else {
-          // Send emails to regular division students
           console.log('Sending emails to regular division students');
           await emailService.sendFormAccessEmail(
             updatedForm.id,
@@ -653,12 +579,7 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Bulk updates the status and dates for multiple feedback forms.
-   * @param data The bulk update data, including form IDs, status, and dates.
-   * @returns Promise<FeedbackForm[]> An array of updated feedback forms.
-   * @throws AppError if any form is not found or update fails.
-   */
+  // Bulk updates the status and dates for multiple feedback forms.
   public async bulkUpdateFormStatus(
     data: BulkUpdateFormStatusInput
   ): Promise<FeedbackForm[]> {
@@ -671,7 +592,7 @@ class FeedbackFormService {
           prisma.feedbackForm.update({
             where: {
               id,
-              isDeleted: false, // Ensure we are not bulk updating status of soft-deleted forms
+              isDeleted: false,
             },
             data: {
               status,
@@ -707,13 +628,7 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * @dev Retrieves a feedback form using an access token.
-   * Checks if the token is valid, form is active, and not yet submitted.
-   * @param token The access token.
-   * @returns Promise<FeedbackForm | null> The feedback form if accessible, otherwise null.
-   * @throws AppError if the token is invalid, form is deleted, or already submitted.
-   */
+  // Retrieves a feedback form using an access token.
   public async getFormByAccessToken(
     token: string
   ): Promise<FeedbackForm | null> {
@@ -724,7 +639,7 @@ class FeedbackFormService {
           form: {
             include: {
               questions: {
-                where: { isDeleted: false }, // Only active questions
+                where: { isDeleted: false },
                 include: {
                   faculty: true,
                   subject: true,
@@ -740,19 +655,16 @@ class FeedbackFormService {
         throw new AppError('Invalid access token.', 404);
       }
 
-      // Check if the form itself is soft-deleted
       if (formAccess.form?.isDeleted) {
         throw new AppError('Form not found or is deleted.', 404);
       }
 
-      // Check if the form is expired based on creation date (7 days)
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const formCreationDate = formAccess.createdAt;
 
       const isExpiredByTime = formCreationDate < sevenDaysAgo;
 
-      // Update the form's isExpired status if needed
       if (isExpiredByTime && !formAccess.form.isExpired) {
         await prisma.feedbackForm.update({
           where: { id: formAccess.form.id },
@@ -765,17 +677,14 @@ class FeedbackFormService {
         );
       }
 
-      // Check explicit expiration flag
       if (formAccess.form?.isExpired) {
         throw new AppError('Form has expired.', 403);
       }
 
-      // Check if the form is active (status)
       if (formAccess.form?.status !== 'ACTIVE') {
         throw new AppError('Form is not currently active.', 403);
       }
 
-      // Check if the form has passed its end date
       if (formAccess.form?.endDate && new Date() > formAccess.form.endDate) {
         throw new AppError('Form submission period has ended.', 403);
       }
@@ -790,7 +699,6 @@ class FeedbackFormService {
         'Error in FeedbackFormService.getFormByAccessToken:',
         error
       );
-      // Re-throw AppError directly, otherwise wrap generic errors
       if (error instanceof AppError) {
         throw error;
       }
@@ -798,18 +706,12 @@ class FeedbackFormService {
     }
   }
 
-  /**
-   * Expires feedback forms that are older than 7 days based on their creation date.
-   * This can be called by a scheduled job or API endpoint.
-   * @returns Promise<number> The number of forms that were marked as expired.
-   */
+  // Expires feedback forms that are older than 7 days.
   public async expireOldForms(): Promise<number> {
     try {
-      // Calculate the date 7 days ago
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      // Update all forms that are older than 7 days and not already expired
       const result = await prisma.feedbackForm.updateMany({
         where: {
           createdAt: {

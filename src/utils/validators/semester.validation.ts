@@ -4,9 +4,9 @@
  */
 
 import { z } from 'zod';
-import { SemesterTypeEnum } from '@prisma/client'; // Import the enum from Prisma client
+import { SemesterTypeEnum } from '@prisma/client';
 
-// Schema for creating a new semester
+// Schema for creating a new semester.
 export const createSemesterSchema = z
   .object({
     departmentId: z
@@ -28,7 +28,6 @@ export const createSemesterSchema = z
       .datetime({ message: 'Invalid end date format. Expected ISO 8601.' })
       .optional(),
     semesterType: z.nativeEnum(SemesterTypeEnum, {
-      // Validate against the Prisma enum
       errorMap: (issue, ctx) => {
         if (issue.code === z.ZodIssueCode.invalid_enum_value) {
           return {
@@ -41,7 +40,7 @@ export const createSemesterSchema = z
   })
   .refine(
     (data) => {
-      // Custom validation: If both startDate and endDate are provided, ensure startDate is before endDate
+      // Custom validation: If both startDate and endDate are provided, ensure startDate is before endDate.
       if (data.startDate && data.endDate) {
         return new Date(data.startDate) < new Date(data.endDate);
       }
@@ -53,7 +52,7 @@ export const createSemesterSchema = z
     }
   );
 
-// Schema for updating an existing semester
+// Schema for updating an existing semester.
 export const updateSemesterSchema = z
   .object({
     departmentId: z.string().uuid('Invalid department ID format.').optional(),
@@ -76,7 +75,6 @@ export const updateSemesterSchema = z
       .optional(),
     semesterType: z
       .nativeEnum(SemesterTypeEnum, {
-        // Validate against the Prisma enum
         errorMap: (issue, ctx) => {
           if (issue.code === z.ZodIssueCode.invalid_enum_value) {
             return {
@@ -90,7 +88,7 @@ export const updateSemesterSchema = z
   })
   .refine(
     (data) => {
-      // Ensure at least one field is provided for update
+      // Ensures at least one field is provided for update.
       if (Object.keys(data).length === 0) {
         throw new z.ZodError([
           {
@@ -110,7 +108,7 @@ export const updateSemesterSchema = z
   )
   .refine(
     (data) => {
-      // Custom validation: If both startDate and endDate are provided, ensure startDate is before endDate
+      // Custom validation: If both startDate and endDate are provided, ensure startDate is before endDate.
       if (data.startDate && data.endDate) {
         return new Date(data.startDate) < new Date(data.endDate);
       }
@@ -122,7 +120,7 @@ export const updateSemesterSchema = z
     }
   );
 
-// Schema for query parameters when getting semesters
+// Schema for query parameters when getting semesters.
 export const getSemestersQuerySchema = z.object({
   departmentId: z.string().uuid('Invalid department ID format.').optional(),
   academicYearId: z
@@ -137,12 +135,12 @@ export const getSemestersQuerySchema = z.object({
   semesterType: z.nativeEnum(SemesterTypeEnum).optional(),
 });
 
-// Schema for batch creating semesters
+// Schema for batch creating semesters.
 export const batchCreateSemestersSchema = z.object({
-  semesters: z.array(createSemesterSchema), // Array of createSemesterSchema objects
+  semesters: z.array(createSemesterSchema),
 });
 
-// Schema for ID parameter validation
+// Schema for ID parameter validation.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });

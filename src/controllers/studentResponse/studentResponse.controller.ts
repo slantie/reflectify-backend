@@ -1,26 +1,22 @@
-// src/controllers/studentResponse/studentResponse.controller.ts
+/**
+ * @file src/controllers/studentResponse/studentResponse.controller.ts
+ * @description Controller for Student Response operations.
+ * Handles request parsing, delegates to StudentResponseService, and sends responses.
+ * Uses asyncHandler for error handling.
+ */
 
 import { Request, Response } from 'express';
 import { studentResponseService } from '../../services/studentResponse/studentResponse.service';
 import asyncHandler from '../../utils/asyncHandler';
-// import AppError from '../../utils/appError';
 import {
   accessTokenParamSchema,
   submitResponsesBodySchema,
 } from '../../utils/validators/studentResponse.validation';
 
-/**
- * @description Submits student responses for a feedback form using an access token.
- * @route POST /api/v1/student-responses/submit/:token
- * @param {Request} req - Express Request object (expects token in params, responses in body)
- * @param {Response} res - Express Response object
- * @access Public (Student via token)
- */
 export const submitResponses = asyncHandler(
+  // Submits student responses for a feedback form using an access token.
   async (req: Request, res: Response) => {
-    // Validate token from params
     const { token } = accessTokenParamSchema.parse(req.params);
-    // Validate responses from body
     const responses = submitResponsesBodySchema.parse(req.body);
 
     const createdResponses = await studentResponseService.submitResponses(
@@ -39,16 +35,9 @@ export const submitResponses = asyncHandler(
   }
 );
 
-/**
- * @description Checks the submission status of a feedback form using an access token.
- * @route GET /api/v1/student-responses/check-submission/:token
- * @param {Request} req - Express Request object (expects token in params)
- * @param {Response} res - Express Response object
- * @access Public (Student via token)
- */
 export const checkSubmission = asyncHandler(
+  // Checks the submission status of a feedback form using an access token.
   async (req: Request, res: Response) => {
-    // Validate token from params
     const { token } = accessTokenParamSchema.parse(req.params);
 
     const submissionStatus =
@@ -56,7 +45,7 @@ export const checkSubmission = asyncHandler(
 
     res.status(200).json({
       status: 'success',
-      data: submissionStatus, // { isSubmitted: boolean }
+      data: submissionStatus,
     });
   }
 );

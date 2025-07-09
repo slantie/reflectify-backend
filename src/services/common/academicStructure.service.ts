@@ -4,16 +4,12 @@
  * Encapsulates business logic and interacts with the Prisma client.
  */
 
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
-import { Department } from '@prisma/client'; // Import Department type for return type clarity
+import { Department } from '@prisma/client';
 
 class AcademicStructureService {
-  /**
-   * Retrieves the complete academic structure, including departments, semesters, divisions, and academic year information.
-   * Filters out all soft-deleted records at each level.
-   * @returns {Promise<Department[]>} An array of Department objects with nested semesters (including academic year info) and divisions.
-   */
+  // Retrieves the complete academic structure, filtering out soft-deleted records.
   public async getAcademicStructure(): Promise<Department[]> {
     try {
       const academicStructure = await prisma.department.findMany({
@@ -59,11 +55,7 @@ class AcademicStructureService {
     }
   }
 
-  /**
-   * Retrieves the academic structure for a specific academic year.
-   * @param academicYearId - The ID of the academic year to filter by.
-   * @returns {Promise<Department[]>} An array of Department objects with nested semesters and divisions for the specified academic year.
-   */
+  // Retrieves the academic structure for a specific academic year.
   public async getAcademicStructureByYear(
     academicYearId: string
   ): Promise<Department[]> {

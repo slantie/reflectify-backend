@@ -1,12 +1,12 @@
-// src/utils/validators/upload.validation.ts
+/**
+ * @file src/utils/validators/upload.validation.ts
+ * @description Zod schemas for validating file upload requests and the structure of data within uploaded files.
+ */
 
 import { z } from 'zod';
-import { Designation, SemesterTypeEnum } from '@prisma/client'; // Import SubjectType enum
+import { Designation, SemesterTypeEnum } from '@prisma/client';
 
-/**
- * @dev Zod schema for validating the structure of a single row of student data from an Excel file.
- * This schema defines the expected types and basic validation rules for each column.
- */
+// Zod schema for validating the structure of a single row of student data from an Excel file.
 export const studentExcelRowSchema = z.object({
   studentName: z.string().min(1, 'Student name is required.').trim(),
   enrollmentNumber: z.string().min(1, 'Enrollment number is required.').trim(),
@@ -33,10 +33,7 @@ export const studentExcelRowSchema = z.object({
     .trim(), // Assuming year as string
 });
 
-/**
- * @dev Zod schema for validating the structure of a single row of faculty data from an Excel file.
- * This schema defines the expected types and basic validation rules for each column.
- */
+// Zod schema for validating the structure of a single row of faculty data from an Excel file.
 export const facultyExcelRowSchema = z.object({
   name: z.string().min(1, 'Faculty name is required.').trim(),
   email: z.string().email('Invalid email format.').toLowerCase().trim(),
@@ -61,10 +58,7 @@ export const facultyExcelRowSchema = z.object({
   joiningDate: z.union([z.date(), z.string(), z.null()]).optional().nullable(), // Can be Date object, string, or null
 });
 
-/**
- * @dev Zod schema for validating the structure of a single row of subject data from an Excel file.
- * This schema defines the expected types and basic validation rules for each column.
- */
+// Zod schema for validating the structure of a single row of subject data from an Excel file.
 export const subjectExcelRowSchema = z
   .object({
     subjectName: z.string().min(1, 'Subject name is required.').trim(),
@@ -97,11 +91,7 @@ export const subjectExcelRowSchema = z
     }
   );
 
-/**
- * @dev Zod schema for validating the properties of an uploaded file object
- * (e.g., req.file as provided by Multer).
- * Ensures correct file type, size, and presence of buffer.
- */
+// Zod schema for validating the properties of an uploaded file object.
 export const multerFileSchema = z.object({
   fieldname: z.string().min(1, 'File fieldname is required.'),
   originalname: z.string().min(1, 'Original filename is required.'),
@@ -119,21 +109,12 @@ export const multerFileSchema = z.object({
   buffer: z.instanceof(Buffer), // Ensure it's a buffer from memory storage
 });
 
-/**
- * @dev Zod schema for validating the file upload itself.
- * This schema explicitly states that the 'file' property on the request
- * (which will be req.file after Multer) must conform to multerFileSchema.
- * This might be used if you were validating the entire 'req' object, but it's
- * often more direct to validate `req.file` against `multerFileSchema`.
- */
+// Zod schema for validating the file upload itself.
 export const fileUploadSchema = z.object({
   file: multerFileSchema, // This now references the dedicated multerFileSchema
 });
 
-/**
- * @dev Zod schema for validating the request body when uploading a faculty matrix.
- * Ensures required fields like academicYear, semesterRun, and deptAbbreviation are present and valid.
- */
+// Zod schema for validating the request body when uploading a faculty matrix.
 export const uploadFacultyMatrixBodySchema = z.object({
   academicYear: z
     .string()

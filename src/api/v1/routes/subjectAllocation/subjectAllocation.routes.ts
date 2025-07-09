@@ -33,11 +33,11 @@ router
       Designation.AsstProf
     ),
     getAllSubjectAllocations
-  ) // GET /api/v1/subject-allocations
+  )
   .post(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     createSubjectAllocation
-  ); // POST /api/v1/subject-allocations
+  );
 
 router
   .route('/:id')
@@ -48,14 +48,14 @@ router
       Designation.AsstProf
     ),
     getSubjectAllocationById
-  ) // GET /api/v1/subject-allocations/:id
+  )
   .patch(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     updateSubjectAllocation
-  ) // PATCH /api/v1/subject-allocations/:id
+  )
   .delete(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     softDeleteSubjectAllocation
-  ); // DELETE /api/v1/subject-allocations/:id (soft delete)
+  );
 
 export default router;

@@ -1,26 +1,22 @@
 /**
  * @file src/middlewares/auth.middleware.ts
- * @description Middleware for authentication and authorization.
- * Verifies JWT tokens and attaches authenticated user data to the request.
+ * @description Middleware for authentication and authorization using JWT tokens.
  */
 
 import { Request, Response, NextFunction } from 'express';
 import AppError from '../utils/appError';
 import asyncHandler from '../utils/asyncHandler';
 import { verifyAuthToken } from '../utils/jwt';
-import { prisma } from '../services/common/prisma.service'; // Corrected import to prisma
+import { prisma } from '../services/common/prisma.service';
 import { JwtPayload } from 'jsonwebtoken';
-import { Designation } from '@prisma/client'; // Import Designation enum for authorizeRoles
+import { Designation } from '@prisma/client';
 
-/**
- * Middleware to protect routes, ensuring only authenticated admins can access.
- * Verifies the JWT token from the Authorization header.
- */
+// Middleware to protect routes, ensuring only authenticated admins can access.
 export const isAuthenticated = asyncHandler(
   async (req: Request, _res: Response, next: NextFunction) => {
     let token: string | undefined;
 
-    // 1. Get token from header
+    // Extracts token from the Authorization header.
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith('Bearer')
@@ -28,6 +24,7 @@ export const isAuthenticated = asyncHandler(
       token = req.headers.authorization.split(' ')[1];
     }
 
+    // Throws an error if no token is provided.
     if (!token) {
       throw new AppError(
         'You are not logged in! Please log in to get access.',
@@ -35,12 +32,12 @@ export const isAuthenticated = asyncHandler(
       );
     }
 
-    // 2. Verify token
     let decoded: JwtPayload;
+    // Verifies the extracted token.
     try {
       decoded = verifyAuthToken(token);
     } catch (error: any) {
-      // Handle specific JWT errors
+      // Handles specific JWT verification errors.
       if (error.name === 'JsonWebTokenError') {
         throw new AppError('Invalid token. Please log in again!', 401);
       }
@@ -50,12 +47,12 @@ export const isAuthenticated = asyncHandler(
       throw new AppError('Authentication failed. Please log in again.', 401);
     }
 
-    // 3. Check if admin still exists and is not soft-deleted
+    // Checks if the authenticated admin still exists and is not soft-deleted.
     const currentAdmin = await prisma.admin.findUnique({
-      // Use prisma
       where: { id: decoded.id, isDeleted: false },
     });
 
+    // Throws an error if the admin no longer exists.
     if (!currentAdmin) {
       throw new AppError(
         'The admin belonging to this token no longer exists.',
@@ -63,36 +60,29 @@ export const isAuthenticated = asyncHandler(
       );
     }
 
-    // 4. Attach admin to request object for subsequent middleware/controllers
-    // Using Pick to ensure only necessary properties are attached
+    // Attaches the authenticated admin's data to the request object.
     req.admin = {
       id: currentAdmin.id,
       email: currentAdmin.email,
-      name: currentAdmin.name, // Now correctly included in Express.Request type
+      name: currentAdmin.name,
       isSuper: currentAdmin.isSuper,
-      designation: currentAdmin.designation, // Now correctly included in Express.Request type
+      designation: currentAdmin.designation,
     };
 
-    next(); // Proceed to the next middleware/route handler
+    next();
   }
 );
 
-/**
- * Middleware to restrict access to specific roles.
- * @param allowedRoles - An array of roles (strings corresponding to Designation enum values) that are allowed to access the route.
- */
+// Middleware to restrict access based on user roles.
 export const authorizeRoles = (...allowedRoles: Designation[]) => {
-  // Use Designation enum for allowedRoles
   return (req: Request, _res: Response, next: NextFunction) => {
-    // req.admin is guaranteed to exist here because isAuthenticated runs before this middleware
+    // Ensures admin data is present on the request.
     if (!req.admin) {
-      // This case should ideally not be reached if isAuthenticated is used correctly
       return next(new AppError('User not authenticated.', 401));
     }
 
-    // Check if the authenticated admin's designation is among the allowed roles
+    // Checks if the admin's designation is among the allowed roles.
     if (!allowedRoles.includes(req.admin.designation as Designation)) {
-      // Cast to Designation for type safety
       return next(
         new AppError('You do not have permission to perform this action.', 403)
       );

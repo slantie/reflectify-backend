@@ -1,4 +1,3 @@
-// src/controllers/upload/facultyMatrix.controller.ts
 /**
  * @file src/controllers/upload/facultyMatrix.controller.ts
  * @description Controller layer for handling faculty matrix upload requests.
@@ -8,24 +7,13 @@ import AppError from '../../utils/appError';
 import { Request, Response } from 'express';
 import { SemesterTypeEnum } from '@prisma/client';
 import asyncHandler from '../../utils/asyncHandler';
-import { multerFileSchema } from '../../utils/validators/upload.validation'; // Import multerFileSchema directly
+import { multerFileSchema } from '../../utils/validators/upload.validation';
 import { facultyMatrixUploadService } from '../../services/upload/facultyMatrix.service';
 import { uploadFacultyMatrixBodySchema } from '../../utils/validators/upload.validation';
 
-/**
- * @description Handles the upload and processing of the faculty matrix Excel file.
- * This function is designed to be used as an Express route handler AFTER Multer processes the file.
- * @param {Request} req - Express Request object (expects req.file and req.body to be populated)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const uploadFacultyMatrix = asyncHandler(
+  // Handles the upload and processing of the faculty matrix Excel file.
   async (req: Request, res: Response) => {
-    console.log('--- Received request in uploadFacultyMatrix controller ---');
-    console.log('req.file:', req.file); // Add this line
-    console.log('req.body:', req.body); // Add this line to check other fields too
-
-    // 1. Ensure file exists (Multer should populate req.file)
     if (!req.file) {
       throw new AppError(
         'No file uploaded or file processing failed by multer.',
@@ -33,7 +21,6 @@ export const uploadFacultyMatrix = asyncHandler(
       );
     }
 
-    // 2. Validate req.file directly against multerFileSchema
     const fileValidationResult = multerFileSchema.safeParse(req.file);
     if (!fileValidationResult.success) {
       const errorMessage = fileValidationResult.error.errors
@@ -46,7 +33,6 @@ export const uploadFacultyMatrix = asyncHandler(
       throw new AppError(`File upload validation failed: ${errorMessage}`, 400);
     }
 
-    // 3. Validate request body parameters using Zod
     const bodyValidationResult = uploadFacultyMatrixBodySchema.safeParse(
       req.body
     );
@@ -74,7 +60,6 @@ export const uploadFacultyMatrix = asyncHandler(
       deptAbbreviation
     );
 
-    // Determine the overall status based on missing entities and Flask status
     const hasBackendErrors =
       result.missingFaculties.length > 0 || result.missingSubjects.length > 0;
     const hasFlaskErrors = result.flaskErrors.length > 0;

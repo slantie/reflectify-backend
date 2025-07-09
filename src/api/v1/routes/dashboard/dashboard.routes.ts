@@ -13,7 +13,7 @@ import {
 import {
   isAuthenticated,
   authorizeRoles,
-} from '../../../../middlewares/auth.middleware'; // Assuming these exist
+} from '../../../../middlewares/auth.middleware';
 
 const router = Router();
 
@@ -21,23 +21,21 @@ const router = Router();
 router.use(isAuthenticated);
 
 // Route for fetching dashboard statistics
-// Typically, dashboard stats are accessible by admins, HODs, etc.
 router.get(
   '/stats',
   authorizeRoles(
     Designation.SUPER_ADMIN,
     Designation.HOD,
     Designation.AsstProf
-  ), // Example roles, adjust as needed
+  ),
   getDashboardStats
-); // GET /api/v1/dashboard/stats
+);
 
 // Route for deleting all database data (development only)
-// Only accessible by super admins and only in development environment
 router.delete(
   '/delete-all-data',
-  authorizeRoles(Designation.SUPER_ADMIN), // Only super admins
+  authorizeRoles(Designation.SUPER_ADMIN),
   deleteAllData
-); // DELETE /api/v1/dashboard/delete-all-data
+);
 
 export default router;

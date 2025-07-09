@@ -1,4 +1,8 @@
-// src/services/upload/studentData.service.ts
+/**
+ * @file src/services/upload/studentData.service.ts
+ * @description Service layer for handling student data upload and processing from Excel files.
+ * It manages student record creation/updates and related academic entities.
+ */
 
 import {
   Prisma,
@@ -10,20 +14,16 @@ import {
   Division,
 } from '@prisma/client';
 import ExcelJS from 'exceljs';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
-import { studentExcelRowSchema } from '../../utils/validators/upload.validation'; // Import Zod schema
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
+import { studentExcelRowSchema } from '../../utils/validators/upload.validation';
 
-// Caches to reduce database lookups for frequently accessed entities during a single upload operation
 const collegeCache = new Map<string, College>();
 const departmentCache = new Map<string, Department>();
 const academicYearCache = new Map<string, AcademicYear>();
 const semesterCache = new Map<string, Semester>();
 const divisionCache = new Map<string, Division>();
 
-// --- Canonical Department Mapping ---
-// This map defines the canonical full name and abbreviation for each department.
-// Keyed by a common identifier (e.g., the abbreviation) for easy lookup.
 const DEPARTMENT_MAPPING: Record<
   string,
   { name: string; abbreviation: string }
@@ -35,23 +35,17 @@ const DEPARTMENT_MAPPING: Record<
   CIVIL: { name: 'Civil Engineering', abbreviation: 'CIVIL' },
   AUTO: { name: 'Automobile Engineering', abbreviation: 'AUTO' },
   EE: { name: 'Electrical Engineering', abbreviation: 'EE' },
-  // Add any other departments here
 };
 
 class StudentDataUploadService {
-  private COLLEGE_ID = 'LDRP-ITR'; // Assuming this is a constant for your college
+  private COLLEGE_ID = 'LDRP-ITR';
 
-  /**
-   * @dev Ensures the College record exists in the database and caches it.
-   * This prevents repeated database queries for the same college during an upload.
-   * @returns {Promise<College>} The College record.
-   * @private
-   */
+  // Ensures the College record exists in the database and caches it.
   private async ensureCollege(): Promise<College> {
     let college = collegeCache.get(this.COLLEGE_ID);
     if (!college) {
       college = await prisma.college.upsert({
-        where: { id: this.COLLEGE_ID, isDeleted: false }, // Filter out soft-deleted colleges
+        where: { id: this.COLLEGE_ID, isDeleted: false },
         create: {
           id: this.COLLEGE_ID,
           name: 'LDRP Institute of Technology and Research',
@@ -59,22 +53,17 @@ class StudentDataUploadService {
           address: 'Sector 15, Gandhinagar, Gujarat',
           contactNumber: '+91-79-23241492',
           logo: 'ldrp-logo.png',
-          images: {}, // Assuming images is a JSON field or similar
-          isDeleted: false, // Ensure new college is not soft-deleted
+          images: {},
+          isDeleted: false,
         },
-        update: {}, // No specific update data needed if it exists
+        update: {},
       });
       collegeCache.set(this.COLLEGE_ID, college);
     }
     return college;
   }
 
-  /**
-   * @dev Extracts the string value from an ExcelJS cell, handling rich text and hyperlinks.
-   * @param {ExcelJS.Cell} cell - The ExcelJS cell object.
-   * @returns {string} The string representation of the cell's value.
-   * @private
-   */
+  // Extracts the string value from an ExcelJS cell.
   private getCellValue(cell: ExcelJS.Cell): string {
     const value = cell.value;
     if (
@@ -83,20 +72,12 @@ class StudentDataUploadService {
       'hyperlink' in value &&
       'text' in value
     ) {
-      return value.text?.toString() || ''; // For hyperlink cells, use the text
+      return value.text?.toString() || '';
     }
-    return value?.toString() || ''; // Convert other values to string
+    return value?.toString() || '';
   }
 
-  /**
-   * @dev Upserts (creates or updates) a Department record, using a canonical mapping.
-   * Caches the result for subsequent lookups.
-   * @param deptAbbreviationInput The abbreviation or name from the Excel file.
-   * @param collegeId The ID of the associated college.
-   * @returns {Promise<Department>} The Department record.
-   * @private
-   * @throws AppError if the department cannot be created or found.
-   */
+  // Upserts (creates or updates) a Department record, using a canonical mapping.
   private async upsertDepartment(
     deptAbbreviationInput: string,
     collegeId: string
@@ -106,7 +87,6 @@ class StudentDataUploadService {
 
     let canonicalDept: { name: string; abbreviation: string } | undefined;
 
-    // Attempt to find canonical department details from our mapping by abbreviation or name
     canonicalDept = DEPARTMENT_MAPPING[deptAbbreviationInput.toUpperCase()];
     if (!canonicalDept) {
       for (const key in DEPARTMENT_MAPPING) {
@@ -121,7 +101,6 @@ class StudentDataUploadService {
     }
 
     if (!canonicalDept) {
-      // If not found in mapping, use input as canonical (with a warning)
       console.warn(
         `Department '${deptAbbreviationInput}' not found in predefined mapping. Using input as canonical.`
       );
@@ -137,15 +116,15 @@ class StudentDataUploadService {
           name: canonicalDept.name,
           collegeId: collegeId,
         },
-        isDeleted: false, // Only consider non-soft-deleted departments
+        isDeleted: false,
       },
       create: {
         name: canonicalDept.name,
         abbreviation: canonicalDept.abbreviation,
-        hodName: `HOD of ${canonicalDept.name}`, // Placeholder
-        hodEmail: `hod.${canonicalDept.abbreviation.toLowerCase()}@ldrp.ac.in`, // Placeholder
+        hodName: `HOD of ${canonicalDept.name}`,
+        hodEmail: `hod.${canonicalDept.abbreviation.toLowerCase()}@ldrp.ac.in`,
         collegeId: collegeId,
-        isDeleted: false, // Ensure new department is not soft-deleted
+        isDeleted: false,
       },
       update: {
         name: canonicalDept.name,
@@ -164,18 +143,10 @@ class StudentDataUploadService {
     return department;
   }
 
-  /**
-   * @dev Finds an AcademicYear record by its year string and handles activation.
-   * Caches the result.
-   * @param academicYearString The year string (e.g., "2023-2024").
-   * @returns {Promise<AcademicYear>} The AcademicYear record.
-   * @private
-   * @throws AppError if the academic year is not found.
-   */
+  // Finds an AcademicYear record by its year string and handles activation.
   private async findAcademicYear(
     academicYearString: string
   ): Promise<AcademicYear> {
-    // Explicitly type academicYear to allow null as findFirst can return null
     let academicYear: AcademicYear | null =
       academicYearCache.get(academicYearString) || null;
     if (academicYear) return academicYear;
@@ -183,7 +154,7 @@ class StudentDataUploadService {
     academicYear = await prisma.academicYear.findFirst({
       where: {
         yearString: academicYearString,
-        isDeleted: false, // Only consider non-soft-deleted academic years
+        isDeleted: false,
       },
     });
 
@@ -194,9 +165,6 @@ class StudentDataUploadService {
       );
     }
 
-    // --- Academic Year Activation Logic ---
-    // If the academic year found/used for this student is not currently active, make it active.
-    // And deactivate any other currently active academic year.
     if (!academicYear.isActive) {
       await prisma.$transaction(async (tx) => {
         const currentActiveYear = await tx.academicYear.findFirst({
@@ -218,7 +186,6 @@ class StudentDataUploadService {
           data: { isActive: true },
         });
         console.log(`Activated Academic Year: ${academicYear!.yearString}`);
-        // Update the cached object to reflect its new active status
         academicYear!.isActive = true;
       });
     }
@@ -227,15 +194,7 @@ class StudentDataUploadService {
     return academicYear;
   }
 
-  /**
-   * @dev Upserts a Semester record. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param semesterNumber The semester number.
-   * @param academicYearId The ID of the associated academic year.
-   * @param semesterType The type of semester (ODD/EVEN).
-   * @returns {Promise<Semester>} The Semester record.
-   * @private
-   */
+  // Upserts a Semester record.
   private async upsertSemester(
     departmentId: string,
     semesterNumber: number,
@@ -254,7 +213,6 @@ class StudentDataUploadService {
           academicYearId: academicYearId,
           semesterType: semesterType,
         },
-        isDeleted: false, // Only consider non-soft-deleted semesters
       },
       create: {
         departmentId: departmentId,
@@ -264,21 +222,14 @@ class StudentDataUploadService {
         isDeleted: false,
       },
       update: {
-        semesterType: semesterType, // Ensure consistency
+        semesterType: semesterType,
       },
     });
     semesterCache.set(semesterKey, semester);
     return semester;
   }
 
-  /**
-   * @dev Upserts a Division record. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param divisionName The name of the division.
-   * @param semesterId The ID of the associated semester.
-   * @returns {Promise<Division>} The Division record.
-   * @private
-   */
+  // Upserts a Division record.
   private async upsertDivision(
     departmentId: string,
     divisionName: string,
@@ -295,29 +246,21 @@ class StudentDataUploadService {
           divisionName: divisionName,
           semesterId: semesterId,
         },
-        isDeleted: false, // Only consider non-soft-deleted divisions
       },
       create: {
         departmentId: departmentId,
         semesterId: semesterId,
         divisionName: divisionName,
-        studentCount: 0, // Initial count
+        studentCount: 0,
         isDeleted: false,
       },
-      update: {}, // No specific update needed if found
+      update: {},
     });
     divisionCache.set(divisionKey, division);
     return division;
   }
 
-  /**
-   * @description Processes an Excel file containing student data,
-   * creating or updating student records and related academic entities.
-   * @param fileBuffer The buffer of the uploaded Excel file.
-   * @returns {Promise<{ message: string; rowsAffected: number;}>}
-   * A summary of the processing results.
-   * @throws AppError if file processing fails or essential data is missing.
-   */
+  // Processes an Excel file containing student data.
   public async processStudentData(fileBuffer: Buffer): Promise<{
     message: string;
     rowsAffected: number;
@@ -339,26 +282,22 @@ class StudentDataUploadService {
         );
       }
 
-      // Clear caches at the beginning of the request to ensure fresh data
       collegeCache.clear();
       departmentCache.clear();
       academicYearCache.clear();
       semesterCache.clear();
       divisionCache.clear();
 
-      // Ensure College exists once per upload
       const college = await this.ensureCollege();
 
-      // Iterate over rows, starting from the second row (assuming first is header)
       for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber);
 
-        // Extract raw cell values
         const rawData = {
           studentName: this.getCellValue(row.getCell(2)),
           enrollmentNumber: this.getCellValue(row.getCell(3)),
           deptAbbreviation: this.getCellValue(row.getCell(4)),
-          semesterNumber: parseInt(this.getCellValue(row.getCell(5))), // Parse here for Zod
+          semesterNumber: parseInt(this.getCellValue(row.getCell(5))),
           divisionName: this.getCellValue(row.getCell(6)),
           studentBatch: this.getCellValue(row.getCell(7)),
           email: this.getCellValue(row.getCell(8)),
@@ -366,7 +305,6 @@ class StudentDataUploadService {
           intakeYear: this.getCellValue(row.getCell(10)),
         };
 
-        // Validate row data using Zod
         const validationResult = studentExcelRowSchema.safeParse(rawData);
 
         if (!validationResult.success) {
@@ -393,14 +331,12 @@ class StudentDataUploadService {
           intakeYear,
         } = validatedData;
 
-        // Determine SemesterTypeEnum (ODD/EVEN) based on semester number
         const semesterType: SemesterTypeEnum =
           semesterNumber % 2 !== 0
             ? SemesterTypeEnum.ODD
             : SemesterTypeEnum.EVEN;
 
         try {
-          // Ensure related entities exist or are upserted
           const department = await this.upsertDepartment(
             deptAbbreviation,
             college.id
@@ -418,17 +354,14 @@ class StudentDataUploadService {
             semester.id
           );
 
-          // --- Student Processing Logic: Prioritize email for updates, handle enrollment conflicts ---
           let studentRecord = await prisma.student.findUnique({
-            where: { email: email, isDeleted: false }, // Filter out soft-deleted students
+            where: { email: email, isDeleted: false },
           });
 
           if (studentRecord) {
-            // Student record found by email, attempt to update it.
             const dataToUpdate: Prisma.StudentUpdateInput = {};
             let hasChanges = false;
 
-            // Compare and prepare updates
             if (studentRecord.name !== studentName) {
               dataToUpdate.name = studentName;
               hasChanges = true;
@@ -436,7 +369,7 @@ class StudentDataUploadService {
             if (studentRecord.phoneNumber !== email) {
               dataToUpdate.phoneNumber = email;
               hasChanges = true;
-            } // Assuming phoneNumber can be updated to email
+            }
             if (studentRecord.academicYearId !== academicYear.id) {
               dataToUpdate.academicYear = { connect: { id: academicYear.id } };
               hasChanges = true;
@@ -462,14 +395,13 @@ class StudentDataUploadService {
               hasChanges = true;
             }
 
-            // Handle enrollment number changes and conflicts carefully
             if (studentRecord.enrollmentNumber !== enrollmentNumber) {
               const existingStudentWithNewEnrollmentNumber =
                 await prisma.student.findUnique({
                   where: {
                     enrollmentNumber: enrollmentNumber,
                     isDeleted: false,
-                  }, // Check only non-soft-deleted
+                  },
                 });
 
               if (
@@ -494,7 +426,6 @@ class StudentDataUploadService {
               updatedRows++;
             }
           } else {
-            // Student record not found by email. Now, check if the enrollment number is already taken by an active student.
             const existingStudentByEnrollmentNumber =
               await prisma.student.findUnique({
                 where: { enrollmentNumber: enrollmentNumber, isDeleted: false },
@@ -508,13 +439,12 @@ class StudentDataUploadService {
               continue;
             }
 
-            // Create a new student.
             await prisma.student.create({
               data: {
                 name: studentName,
                 enrollmentNumber: enrollmentNumber,
                 email: email,
-                phoneNumber: email, // Assuming phoneNumber can be set to email if not provided
+                phoneNumber: email,
                 academicYear: { connect: { id: academicYear.id } },
                 batch: studentBatch,
                 intakeYear: intakeYear,
@@ -548,7 +478,6 @@ class StudentDataUploadService {
         500
       );
     } finally {
-      // Clear all caches after processing to free up memory.
       collegeCache.clear();
       departmentCache.clear();
       academicYearCache.clear();

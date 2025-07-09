@@ -24,26 +24,25 @@ const router = Router();
 // Apply authentication middleware to all college routes
 router.use(isAuthenticated);
 
-// Routes for managing the primary college (assuming a single primary college identified by COLLEGE_ID)
-// These operations are likely restricted to Super Admin or specific Admins
+// Routes for managing the primary college
 router
   .route('/')
-  .get(getColleges) // GET /api/v1/colleges (get all colleges, or just the primary one if only one exists)
-  .post(authorizeRoles(Designation.SUPER_ADMIN), upsertPrimaryCollege); // POST /api/v1/colleges (create/upsert primary college)
+  .get(getColleges)
+  .post(authorizeRoles(Designation.SUPER_ADMIN), upsertPrimaryCollege);
 
 router
   .route('/primary')
-  .get(getPrimaryCollege) // GET /api/v1/colleges/primary
+  .get(getPrimaryCollege)
   .patch(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     updatePrimaryCollege
-  ) // PATCH /api/v1/colleges/primary
-  .delete(authorizeRoles(Designation.SUPER_ADMIN), softDeletePrimaryCollege); // DELETE /api/v1/colleges/primary (soft delete)
+  )
+  .delete(authorizeRoles(Designation.SUPER_ADMIN), softDeletePrimaryCollege);
 
 router.patch(
   '/primary/batch-update',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   batchUpdatePrimaryCollege
-); // PATCH /api/v1/colleges/primary/batch-update
+);
 
 export default router;

@@ -1,17 +1,16 @@
-// src/controllers/common/database.controller.ts
+/**
+ * @file src/controllers/common/database.controller.ts
+ * @description Controller for database operations.
+ * Handles request parsing, delegates to DatabaseService, and sends responses.
+ * Uses asyncHandler for error handling.
+ */
 
 import { Request, Response } from 'express';
 import { databaseService } from '../../services/common/database.service';
 import asyncHandler from '../../utils/asyncHandler';
 
-/**
- * @description Cleans all database tables.
- * @route DELETE /api/v1/database/clean
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Super Admin only)
- */
 export const cleanDatabase = asyncHandler(
+  // Cleans all database tables.
   async (_req: Request, res: Response) => {
     await databaseService.cleanDatabase();
 

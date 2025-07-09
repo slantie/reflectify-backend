@@ -5,14 +5,11 @@
  */
 
 import { Student } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
-// Simple in-memory cache for student data
-// Keyed by enrollmentNumber or ID
 const studentCache = new Map<string, Student>();
 
-// Interface for student data input
 interface StudentDataInput {
   name: string;
   enrollmentNumber: string;
@@ -27,12 +24,7 @@ interface StudentDataInput {
 }
 
 class StudentService {
-  /**
-   * Retrieves all active students.
-   * Includes related department, semester, and division.
-   * Only returns students that are not soft-deleted and belong to non-soft-deleted parents.
-   * @returns An array of Student objects.
-   */
+  // Retrieves all active students.
   public async getAllStudents(): Promise<Student[]> {
     try {
       const students = await prisma.student.findMany({
@@ -41,18 +33,18 @@ class StudentService {
           department: { isDeleted: false },
           semester: { isDeleted: false },
           division: { isDeleted: false },
-          academicYear: { isDeleted: false }, // Ensure academic year is also active
+          academicYear: { isDeleted: false },
         },
         include: {
           department: {
             include: {
-              college: true, // Include college within department
+              college: true,
             },
           },
           semester: true,
           division: true,
-          academicYear: true, // Include academic year
-          responses: { where: { isDeleted: false } }, // Include active responses
+          academicYear: true,
+          responses: { where: { isDeleted: false } },
         },
       });
       return students;
@@ -62,13 +54,7 @@ class StudentService {
     }
   }
 
-  /**
-   * Creates a new student or updates an existing one based on enrollment number.
-   * Validates existence and active status of parent department, semester, division, and academic year.
-   * @param data - The data for the new student.
-   * @returns The created or updated Student object.
-   * @throws AppError if parent entities not found or if enrollment number/email already exists.
-   */
+  // Creates a new student or updates an existing one based on enrollment number.
   public async createStudent(data: StudentDataInput): Promise<Student> {
     const {
       name,
@@ -83,10 +69,8 @@ class StudentService {
       image,
     } = data;
 
-    // Clear cache on any write operation
     studentCache.clear();
 
-    // 1. Validate Academic Year existence and active status
     const existingAcademicYear = await prisma.academicYear.findUnique({
       where: { id: academicYearId, isDeleted: false },
     });
@@ -94,7 +78,6 @@ class StudentService {
       throw new AppError('Academic Year not found or is deleted.', 400);
     }
 
-    // 2. Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -102,7 +85,6 @@ class StudentService {
       throw new AppError('Department not found or is deleted.', 400);
     }
 
-    // 3. Validate Semester existence and active status
     const existingSemester = await prisma.semester.findUnique({
       where: { id: semesterId, isDeleted: false },
     });
@@ -110,7 +92,6 @@ class StudentService {
       throw new AppError('Semester not found or is deleted.', 400);
     }
 
-    // 4. Validate Division existence and active status
     const existingDivision = await prisma.division.findUnique({
       where: { id: divisionId, isDeleted: false },
     });
@@ -120,29 +101,26 @@ class StudentService {
 
     try {
       const student = await prisma.student.upsert({
-        where: { enrollmentNumber: enrollmentNumber }, // Unique field for upsert
+        where: { enrollmentNumber: enrollmentNumber },
         create: {
           name,
           enrollmentNumber,
           email,
           phoneNumber,
-          academicYear: { connect: { id: academicYearId } }, // Connect to AcademicYear by ID
+          academicYear: { connect: { id: academicYearId } },
           batch,
-          department: { connect: { id: departmentId } }, // Connect to Department by ID
+          department: { connect: { id: departmentId } },
           semester: { connect: { id: semesterId } },
           division: { connect: { id: divisionId } },
           image,
         },
         update: {
-          // When updating, explicitly define fields. Do NOT spread the entire 'data' object
-          // if it contains foreign key IDs that are also handled by 'connect'.
           name: data.name,
           enrollmentNumber: data.enrollmentNumber,
           email: data.email,
           phoneNumber: data.phoneNumber,
           batch: data.batch,
           image: data.image,
-          // Conditionally connect relations if their IDs are provided in the update data
           academicYear: data.academicYearId
             ? { connect: { id: data.academicYearId } }
             : undefined,
@@ -168,12 +146,11 @@ class StudentService {
         },
       });
 
-      studentCache.set(enrollmentNumber, student); // Cache by enrollment number
+      studentCache.set(enrollmentNumber, student);
       return student;
     } catch (error: any) {
       console.error('Error in StudentService.createStudent:', error);
       if (error.code === 'P2002') {
-        // Unique constraint violation (enrollmentNumber or email)
         if (error.meta?.target?.includes('enrollmentNumber')) {
           throw new AppError(
             'Student with this enrollment number already exists.',
@@ -188,15 +165,9 @@ class StudentService {
     }
   }
 
-  /**
-   * Retrieves a single active student by their ID.
-   * Includes related department (with college), semester, division, academic year, and responses.
-   * @param id - The ID of the student to retrieve.
-   * @returns The Student object, or null if not found.
-   */
+  // Retrieves a single active student by their ID.
   public async getStudentById(id: string): Promise<Student | null> {
-    // Try to get from cache first
-    let student: Student | null | undefined = studentCache.get(id); // Assuming cache key is ID for this method
+    let student: Student | null | undefined = studentCache.get(id);
     if (student) {
       return student;
     }
@@ -225,7 +196,7 @@ class StudentService {
       });
 
       if (student) {
-        studentCache.set(id, student); // Cache the result by ID
+        studentCache.set(id, student);
       }
       return student;
     } catch (error: any) {
@@ -234,23 +205,14 @@ class StudentService {
     }
   }
 
-  /**
-   * Updates an existing student.
-   * Validates existence and active status of parent entities if their IDs are provided.
-   * @param id - The ID of the student to update.
-   * @param data - The partial data to update the student with.
-   * @returns The updated Student object.
-   * @throws AppError if the student is not found or update fails.
-   */
+  // Updates an existing student.
   public async updateStudent(
     id: string,
     data: Partial<StudentDataInput>
   ): Promise<Student> {
     try {
-      // Clear cache on any write operation
       studentCache.clear();
 
-      // Validate parent entity existence if their IDs are provided in update data
       if (data.academicYearId) {
         const existingAcademicYear = await prisma.academicYear.findUnique({
           where: { id: data.academicYearId, isDeleted: false },
@@ -296,7 +258,6 @@ class StudentService {
         }
       }
 
-      // Destructure the data to separate direct foreign key IDs from other update fields
       const {
         academicYearId,
         departmentId,
@@ -306,10 +267,9 @@ class StudentService {
       } = data;
 
       const student = await prisma.student.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: {
-          ...restOfData, // Spread the rest of the update data
-          // Conditionally connect relations if their IDs are provided
+          ...restOfData,
           academicYear: academicYearId
             ? { connect: { id: academicYearId } }
             : undefined,
@@ -330,16 +290,14 @@ class StudentService {
           academicYear: true,
         },
       });
-      studentCache.set(id, student); // Update cache by ID
+      studentCache.set(id, student);
       return student;
     } catch (error: any) {
       console.error('Error in StudentService.updateStudent:', error);
       if (error.code === 'P2025') {
-        // Prisma error for record not found for update
         throw new AppError('Student not found for update.', 404);
       }
       if (error.code === 'P2002') {
-        // Unique constraint violation (enrollmentNumber or email)
         if (error.meta?.target?.includes('enrollmentNumber')) {
           throw new AppError(
             'Student with this enrollment number already exists.',
@@ -354,19 +312,13 @@ class StudentService {
     }
   }
 
-  /**
-   * Soft deletes a student by setting its isDeleted flag to true.
-   * @param id - The ID of the student to soft delete.
-   * @returns The soft-deleted Student object.
-   * @throws AppError if the student is not found.
-   */
+  // Soft deletes a student.
   public async softDeleteStudent(id: string): Promise<Student> {
     try {
-      // Clear cache before deletion
       studentCache.clear();
 
       const student = await prisma.student.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return student;
@@ -379,23 +331,15 @@ class StudentService {
     }
   }
 
-  /**
-   * Performs a batch creation of students.
-   * Validates existence and active status of parent entities for each student.
-   * @param studentsData - An array of student data objects.
-   * @returns An array of created or updated Student objects.
-   * @throws AppError if any student creation/update fails due to invalid parent IDs or unique constraints.
-   */
+  // Performs a batch creation of students.
   public async batchCreateStudents(
     studentsData: StudentDataInput[]
   ): Promise<Student[]> {
-    // Clear cache before batch operation
     studentCache.clear();
 
     const results: Student[] = [];
 
     for (const std of studentsData) {
-      // Validate Academic Year existence and active status
       const existingAcademicYear = await prisma.academicYear.findUnique({
         where: { id: std.academicYearId, isDeleted: false },
       });
@@ -406,7 +350,6 @@ class StudentService {
         );
       }
 
-      // Validate Department existence and active status
       const existingDepartment = await prisma.department.findUnique({
         where: { id: std.departmentId, isDeleted: false },
       });
@@ -417,7 +360,6 @@ class StudentService {
         );
       }
 
-      // Validate Semester existence and active status
       const existingSemester = await prisma.semester.findUnique({
         where: { id: std.semesterId, isDeleted: false },
       });
@@ -428,7 +370,6 @@ class StudentService {
         );
       }
 
-      // Validate Division existence and active status
       const existingDivision = await prisma.division.findUnique({
         where: { id: std.divisionId, isDeleted: false },
       });
@@ -439,7 +380,6 @@ class StudentService {
         );
       }
 
-      // Destructure the data to separate direct foreign key IDs from other update fields
       const {
         academicYearId,
         departmentId,
@@ -464,9 +404,7 @@ class StudentService {
             image: std.image,
           },
           update: {
-            // When updating, explicitly define fields. Do NOT spread the entire 'std' object
-            // if it contains foreign key IDs that are also handled by 'connect'.
-            ...restOfStdData, // Spread the rest of the update data
+            ...restOfStdData,
             academicYear: academicYearId
               ? { connect: { id: academicYearId } }
               : undefined,
@@ -491,7 +429,6 @@ class StudentService {
       } catch (error: any) {
         console.error(`Error in batch creating student '${std.name}':`, error);
         if (error.code === 'P2002') {
-          // Unique constraint violation (enrollmentNumber or email)
           if (error.meta?.target?.includes('enrollmentNumber')) {
             throw new AppError(
               `Student with enrollment number '${std.enrollmentNumber}' already exists.`,

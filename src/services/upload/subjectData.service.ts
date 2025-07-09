@@ -13,20 +13,16 @@ import {
   AcademicYear,
   Semester,
 } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
-import { subjectExcelRowSchema } from '../../utils/validators/upload.validation'; // Import Zod schema for subject rows
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
+import { subjectExcelRowSchema } from '../../utils/validators/upload.validation';
 
-// Caches to reduce database lookups for frequently accessed entities during a single upload operation
-const COLLEGE_ID = 'LDRP-ITR'; // Assuming this is a constant for your college
+const COLLEGE_ID = 'LDRP-ITR';
 const collegeCache = new Map<string, College>();
 const departmentCache = new Map<string, Department>();
 const academicYearCache = new Map<string, AcademicYear>();
 const semesterCache = new Map<string, Semester>();
 
-// --- Canonical Department Mapping ---
-// This map defines the canonical full name and abbreviation for each department.
-// Keyed by a common identifier (e.g., the abbreviation) for easy lookup.
 const DEPARTMENT_MAPPING: Record<
   string,
   { name: string; abbreviation: string }
@@ -41,12 +37,7 @@ const DEPARTMENT_MAPPING: Record<
 };
 
 class SubjectDataUploadService {
-  /**
-   * @dev Extracts the string value from an ExcelJS cell, handling rich text and hyperlinks.
-   * @param {ExcelJS.Cell} cell - The ExcelJS cell object.
-   * @returns {string} The string representation of the cell's value.
-   * @private
-   */
+  // Extracts the string value from an ExcelJS cell.
   private getCellValue(cell: ExcelJS.Cell): string {
     const value = cell.value;
     if (
@@ -60,17 +51,12 @@ class SubjectDataUploadService {
     return value?.toString() || '';
   }
 
-  /**
-   * @dev Ensures the College record exists in the database and caches it.
-   * This prevents repeated database queries for the same college during an upload.
-   * @returns {Promise<College>} The College record.
-   * @private
-   */
+  // Ensures the College record exists in the database and caches it.
   private async ensureCollege(): Promise<College> {
     let college = collegeCache.get(COLLEGE_ID);
     if (!college) {
       college = await prisma.college.upsert({
-        where: { id: COLLEGE_ID, isDeleted: false }, // Filter out soft-deleted colleges
+        where: { id: COLLEGE_ID, isDeleted: false },
         create: {
           id: COLLEGE_ID,
           name: 'LDRP Institute of Technology and Research',
@@ -78,39 +64,29 @@ class SubjectDataUploadService {
           address: 'Sector 15, Gandhinagar, Gujarat',
           contactNumber: '+91-79-23241492',
           logo: 'ldrp-logo.png',
-          images: {}, // Assuming images is a JSON field or similar
-          isDeleted: false, // Ensure new college is not soft-deleted
+          images: {},
+          isDeleted: false,
         },
-        update: {}, // No specific update data needed if it exists
+        update: {},
       });
       collegeCache.set(COLLEGE_ID, college);
     }
     return college;
   }
 
-  /**
-   * @dev Upserts (creates or updates) a Department record, using a canonical mapping.
-   * Caches the result for subsequent lookups.
-   * @param deptAbbreviationInput The abbreviation or name from the Excel file.
-   * @param collegeId The ID of the associated college.
-   * @returns {Promise<Department>} The Department record.
-   * @private
-   * @throws AppError if the department cannot be created or found.
-   */
+  // Upserts (creates or updates) a Department record, using a canonical mapping.
   private async upsertDepartment(
     deptAbbreviationInput: string,
     collegeId: string
   ): Promise<Department> {
-    let department = departmentCache.get(deptAbbreviationInput); // Try to get from cache using original input string
+    let department = departmentCache.get(deptAbbreviationInput);
     let canonicalDept: { name: string; abbreviation: string } | undefined;
 
-    if (department) return department; // Return from cache if found
+    if (department) return department;
 
-    // Attempt to find canonical department details from our mapping
-    canonicalDept = DEPARTMENT_MAPPING[deptAbbreviationInput.toUpperCase()]; // Use uppercase for map key lookup
+    canonicalDept = DEPARTMENT_MAPPING[deptAbbreviationInput.toUpperCase()];
 
     if (!canonicalDept) {
-      // If not found as an abbreviation, check if it's a full name
       for (const key in DEPARTMENT_MAPPING) {
         if (
           DEPARTMENT_MAPPING[key].name.toLowerCase() ===
@@ -123,36 +99,32 @@ class SubjectDataUploadService {
     }
 
     if (!canonicalDept) {
-      // If still not found in our predefined map, use the input as is, but warn
       console.warn(
         `Department '${deptAbbreviationInput}' not found in predefined mapping. Using input as canonical.`
       );
       canonicalDept = {
         name: deptAbbreviationInput,
         abbreviation: deptAbbreviationInput,
-      }; // Fallback to using input as both
+      };
     }
 
-    // Now, use the canonical name and abbreviation for database operations
     department = await prisma.department.upsert({
       where: {
         name_collegeId: {
-          // Use the canonical name for the unique constraint
           name: canonicalDept.name,
           collegeId: collegeId,
         },
-        isDeleted: false, // Only consider non-soft-deleted departments
+        isDeleted: false,
       },
       create: {
         name: canonicalDept.name,
         abbreviation: canonicalDept.abbreviation,
-        hodName: `HOD of ${canonicalDept.name}`, // Placeholder HOD name
-        hodEmail: `hod.${canonicalDept.abbreviation.toLowerCase()}@ldrp.ac.in`, // Placeholder HOD email
+        hodName: `HOD of ${canonicalDept.name}`,
+        hodEmail: `hod.${canonicalDept.abbreviation.toLowerCase()}@ldrp.ac.in`,
         collegeId: collegeId,
-        isDeleted: false, // Ensure new department is not soft-deleted
+        isDeleted: false,
       },
       update: {
-        // Ensure existing department's name and abbreviation are updated to canonical form
         name: canonicalDept.name,
         abbreviation: canonicalDept.abbreviation,
       },
@@ -165,36 +137,27 @@ class SubjectDataUploadService {
       );
     }
 
-    departmentCache.set(deptAbbreviationInput, department); // Cache using the original input string for future lookups in this request
+    departmentCache.set(deptAbbreviationInput, department);
     return department;
   }
 
-  /**
-   * @dev Finds or creates the AcademicYear record in the database and caches it.
-   * If the academic year doesn't exist, it will be created automatically.
-   * @param {string} yearString - The academic year string (e.g., "2024-2025").
-   * @returns {Promise<AcademicYear>} The AcademicYear record.
-   * @private
-   */
+  // Finds or creates the AcademicYear record in the database and caches it.
   private async findOrCreateAcademicYear(
     yearString: string
   ): Promise<AcademicYear> {
-    // Explicitly type academicYear to allow null or undefined from cache/findFirst
     let academicYear: AcademicYear | null | undefined =
       academicYearCache.get(yearString);
     if (academicYear) return academicYear;
 
     academicYear = await prisma.academicYear.findFirst({
-      where: { yearString: yearString, isDeleted: false }, // Only consider non-soft-deleted academic years
+      where: { yearString: yearString, isDeleted: false },
     });
 
     if (!academicYear) {
-      // Create the academic year if it doesn't exist
       console.log(
         `Academic Year '${yearString}' not found. Creating it automatically.`
       );
 
-      // Find any existing active academic year
       const existingActiveYear = await prisma.academicYear.findFirst({
         where: {
           isActive: true,
@@ -202,7 +165,6 @@ class SubjectDataUploadService {
         },
       });
 
-      // If there's an active year, deactivate it first
       if (existingActiveYear) {
         await prisma.academicYear.update({
           where: { id: existingActiveYear.id },
@@ -213,11 +175,10 @@ class SubjectDataUploadService {
         );
       }
 
-      // Create the new academic year
       academicYear = await prisma.academicYear.create({
         data: {
           yearString: yearString,
-          isActive: true, // Set as active by default
+          isActive: true,
           isDeleted: false,
         },
       });
@@ -229,15 +190,7 @@ class SubjectDataUploadService {
     return academicYear;
   }
 
-  /**
-   * @dev Upserts a Semester record. Caches the result.
-   * @param departmentId The ID of the associated department.
-   * @param semesterNumber The semester number.
-   * @param academicYearId The ID of the associated academic year.
-   * @param semesterType The type of semester (ODD/EVEN).
-   * @returns {Promise<Semester>} The Semester record.
-   * @private
-   */
+  // Upserts a Semester record.
   private async upsertSemester(
     departmentId: string,
     semesterNumber: number,
@@ -256,7 +209,7 @@ class SubjectDataUploadService {
           academicYearId: academicYearId,
           semesterType: semesterType,
         },
-        isDeleted: false, // Only consider non-soft-deleted semesters
+        isDeleted: false,
       },
       create: {
         departmentId: departmentId,
@@ -266,21 +219,14 @@ class SubjectDataUploadService {
         isDeleted: false,
       },
       update: {
-        semesterType: semesterType, // Ensure consistency
+        semesterType: semesterType,
       },
     });
     semesterCache.set(semesterKey, semester);
     return semester;
   }
 
-  /**
-   * @description Processes an Excel file containing subject data,
-   * creating or updating subject records and related academic entities.
-   * @param fileBuffer The buffer of the uploaded Excel file.
-   * @returns {Promise<{ message: string; addedRows: number; updatedRows: number; unchangedRows: number; skippedRows: number; skippedRowsDetails: string[]; }>}
-   * A summary of the processing results.
-   * @throws AppError if file processing fails or essential data is missing.
-   */
+  // Processes an Excel file containing subject data.
   public async processSubjectData(fileBuffer: Buffer): Promise<{
     message: string;
     rowsAffected: number;
@@ -303,16 +249,13 @@ class SubjectDataUploadService {
         );
       }
 
-      // Clear caches at the beginning of the request to ensure fresh data
       collegeCache.clear();
       departmentCache.clear();
       academicYearCache.clear();
       semesterCache.clear();
 
-      // Ensure College exists (cached)
       const college = await this.ensureCollege();
 
-      // First try to get active academic year
       let academicYear = await prisma.academicYear.findFirst({
         where: {
           isActive: true,
@@ -320,27 +263,21 @@ class SubjectDataUploadService {
         },
       });
 
-      // If no active year exists, create one based on current date
       if (!academicYear) {
-        // Determine the current academic year string (e.g., "2024-2025")
         const now = new Date();
-        const currentMonth = now.getMonth(); // 0-indexed (Jan=0, Dec=11)
+        const currentMonth = now.getMonth();
         let currentYear = now.getFullYear();
-        // If current month is before August (0-6), assume previous academic year started in previous calendar year
         if (currentMonth < 7) {
-          // Assuming academic year starts in August (month 7)
           currentYear = currentYear - 1;
         }
         const currentYearString = `${currentYear}-${currentYear + 1}`;
 
         academicYear = await this.findOrCreateAcademicYear(currentYearString);
       }
-      // findOrCreateAcademicYear will create the academic year if it doesn't exist
 
       for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber);
 
-        // Extract raw cell values
         const rawData = {
           subjectName: this.getCellValue(row.getCell(2))?.trim() || '',
           subjectAbbreviation: this.getCellValue(row.getCell(3))?.trim() || '',
@@ -352,7 +289,6 @@ class SubjectDataUploadService {
             this.getCellValue(row.getCell(7))?.trim() || '',
         };
 
-        // Validate row data using Zod
         const validationResult = subjectExcelRowSchema.safeParse(rawData);
 
         if (!validationResult.success) {
@@ -376,22 +312,19 @@ class SubjectDataUploadService {
           deptAbbreviationInput,
         } = validatedData;
 
-        const semesterNumber = parseInt(semesterNumberStr, 10); // Already validated by Zod refine
+        const semesterNumber = parseInt(semesterNumberStr, 10);
 
-        // Determine SemesterTypeEnum (ODD/EVEN) based on semester number
         const semesterType: SemesterTypeEnum =
           semesterNumber % 2 !== 0
             ? SemesterTypeEnum.ODD
             : SemesterTypeEnum.EVEN;
 
         try {
-          // Ensure Department exists or is upserted
           const department = await this.upsertDepartment(
             deptAbbreviationInput,
             college.id
           );
 
-          // Ensure Semester exists or is upserted
           const semester = await this.upsertSemester(
             department.id,
             semesterNumber,
@@ -399,33 +332,25 @@ class SubjectDataUploadService {
             semesterType
           );
 
-          // Determine SubjectType
           const subjectType: SubjectType =
             isElectiveStr === 'TRUE'
               ? SubjectType.ELECTIVE
               : SubjectType.MANDATORY;
 
-          // Prepare New Subject Data
-          // IMPORTANT: Do NOT include departmentId and semesterId directly here
-          // when using nested `connect` operations below.
           const newSubjectData = {
             name: subjectName,
             abbreviation: subjectAbbreviation,
             subjectCode: subjectCode,
             type: subjectType,
-            // departmentId: department.id, // REMOVED: Handled by nested connect
-            // semesterId: semester.id, // REMOVED: Handled by nested connect
           };
 
-          // Find Existing Subject and Compare (with soft-delete filter)
-          // Subject is unique by departmentId and abbreviation
           const existingSubject = await prisma.subject.findUnique({
             where: {
               departmentId_abbreviation: {
-                departmentId: department.id, // Use department.id for lookup
+                departmentId: department.id,
                 abbreviation: newSubjectData.abbreviation,
               },
-              isDeleted: false, // Only consider non-soft-deleted subjects
+              isDeleted: false,
             },
             select: {
               id: true,
@@ -439,7 +364,6 @@ class SubjectDataUploadService {
           });
 
           if (existingSubject) {
-            // Normalize existing data for comparison (trim strings)
             const existingNormalizedData = {
               name: existingSubject.name?.trim() || '',
               abbreviation: existingSubject.abbreviation?.trim() || '',
@@ -449,13 +373,12 @@ class SubjectDataUploadService {
               semesterId: existingSubject.semesterId,
             };
 
-            // Compare fields to determine if a change occurred
             const isChanged =
               existingNormalizedData.name !== newSubjectData.name ||
               existingNormalizedData.subjectCode !==
                 newSubjectData.subjectCode ||
               existingNormalizedData.type !== newSubjectData.type ||
-              existingNormalizedData.semesterId !== semester.id; // Compare with the ID of the resolved semester
+              existingNormalizedData.semesterId !== semester.id;
 
             if (isChanged) {
               await prisma.subject.update({
@@ -466,7 +389,7 @@ class SubjectDataUploadService {
                   name: newSubjectData.name,
                   subjectCode: newSubjectData.subjectCode,
                   type: newSubjectData.type,
-                  semester: { connect: { id: semester.id } }, // Update the semester association
+                  semester: { connect: { id: semester.id } },
                   isDeleted: false,
                 },
               });
@@ -475,12 +398,11 @@ class SubjectDataUploadService {
               unchangedRows++;
             }
           } else {
-            // Create new subject
             await prisma.subject.create({
               data: {
                 ...newSubjectData,
-                department: { connect: { id: department.id } }, // Connect to department
-                semester: { connect: { id: semester.id } }, // Connect to semester
+                department: { connect: { id: department.id } },
+                semester: { connect: { id: semester.id } },
                 isDeleted: false,
               },
             });
@@ -508,7 +430,6 @@ class SubjectDataUploadService {
         500
       );
     } finally {
-      // Clear all caches after processing to free up memory.
       collegeCache.clear();
       departmentCache.clear();
       academicYearCache.clear();

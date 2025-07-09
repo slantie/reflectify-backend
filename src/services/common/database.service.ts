@@ -1,12 +1,14 @@
-// src/services/common/database.service.ts
+/**
+ * @file src/services/common/database.service.ts
+ * @description Service layer for cleaning database operations.
+ * Encapsulates business logic and interacts with the Prisma client.
+ */
 
 import { prisma } from './prisma.service';
 import AppError from '../../utils/appError';
 
 class DatabaseService {
-  /**
-   * Cleans all database tables except the Admin table.
-   */
+  // Cleans all database tables except the Admin table.
   public async cleanDatabase(): Promise<void> {
     try {
       await prisma.$transaction([
@@ -30,7 +32,7 @@ class DatabaseService {
         prisma.academicYear.deleteMany(),
         prisma.oTP.deleteMany(),
         prisma.feedbackSnapshot.deleteMany(),
-        // prisma.admin.deleteMany(), // <-- Do NOT delete Admins
+        // prisma.admin.deleteMany(),
       ]);
 
       console.log('🗑️ Database cleaned successfully (Admins preserved)');

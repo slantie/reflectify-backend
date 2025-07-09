@@ -5,16 +5,11 @@
  */
 
 import { AcademicYear } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
 class AcademicYearService {
-  /**
-   * Creates a new academic year.
-   * @param data - The data for the new academic year (yearString, isActive).
-   * @returns The created AcademicYear object.
-   * @throws AppError if an academic year with the same yearString already exists.
-   */
+  // Creates a new academic year.
   public async createAcademicYear(data: {
     yearString: string;
     isActive?: boolean;
@@ -53,10 +48,7 @@ class AcademicYearService {
     }
   }
 
-  /**
-   * Retrieves all academic years, excluding soft-deleted ones by default.
-   * @returns An array of AcademicYear objects.
-   */
+  // Retrieves all academic years, excluding soft-deleted ones by default.
   public async getAllAcademicYears(): Promise<AcademicYear[]> {
     try {
       const academicYears = await prisma.academicYear.findMany({
@@ -71,11 +63,7 @@ class AcademicYearService {
     }
   }
 
-  /**
-   * Retrieves a single academic year by its ID, excluding soft-deleted ones.
-   * @param id - The ID of the academic year to retrieve.
-   * @returns The AcademicYear object, or null if not found.
-   */
+  // Retrieves a single academic year by its ID, excluding soft-deleted ones.
   public async getAcademicYearById(id: string): Promise<AcademicYear | null> {
     try {
       const academicYear = await prisma.academicYear.findUnique({
@@ -87,13 +75,7 @@ class AcademicYearService {
     }
   }
 
-  /**
-   * Updates an existing academic year.
-   * @param id - The ID of the academic year to update.
-   * @param data - The data to update (yearString, isActive).
-   * @returns The updated AcademicYear object.
-   * @throws AppError if the academic year is not found or if the yearString already exists.
-   */
+  // Updates an existing academic year.
   public async updateAcademicYear(
     id: string,
     data: {
@@ -141,18 +123,7 @@ class AcademicYearService {
     }
   }
 
-  /**
-   * Soft deletes an academic year by setting its isDeleted flag to true.
-   * @param id - The ID of the academic year to soft delete.
-   * @returns The soft-deleted AcademicYear object.
-   * @throws AppError if the academic year is not found.
-   *
-   * IMPORTANT: This implementation assumes that the `onDelete: Restrict` in your Prisma schema
-   * will prevent a *hard delete* if there are related records. For a *soft delete*, you typically
-   * don't need to check for dependents manually, as you're just marking it as deleted, not removing it.
-   * However, if your business logic requires preventing soft-deletion when dependents exist,
-   * you would add those checks here. For now, we'll proceed with simple soft delete.
-   */
+  // Soft deletes an academic year by setting its isDeleted flag to true.
   public async softDeleteAcademicYear(id: string): Promise<AcademicYear> {
     try {
       const academicYear = await prisma.academicYear.update({
@@ -168,10 +139,7 @@ class AcademicYearService {
     }
   }
 
-  /**
-   * Gets the currently active academic year.
-   * @returns The active AcademicYear object, or null if none is active.
-   */
+  // Gets the currently active academic year.
   public async getActiveAcademicYear(): Promise<AcademicYear | null> {
     try {
       const activeAcademicYear = await prisma.academicYear.findFirst({

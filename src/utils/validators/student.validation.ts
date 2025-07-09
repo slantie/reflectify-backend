@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-// Schema for creating a new student
+// Schema for creating a new student.
 export const createStudentSchema = z.object({
   name: z.string().min(1, 'Student name is required.'),
   enrollmentNumber: z
@@ -22,17 +22,17 @@ export const createStudentSchema = z.object({
     .min(10, 'Phone number must be at least 10 digits.'),
   academicYearId: z
     .string()
-    .uuid('Invalid academic year ID format. Must be a UUID.'), // Expecting ID
+    .uuid('Invalid academic year ID format. Must be a UUID.'),
   batch: z.string().min(1, 'Batch is required.'),
   departmentId: z
     .string()
-    .uuid('Invalid department ID format. Must be a UUID.'), // Expecting ID
+    .uuid('Invalid department ID format. Must be a UUID.'),
   semesterId: z.string().uuid('Invalid semester ID format. Must be a UUID.'),
   divisionId: z.string().uuid('Invalid division ID format. Must be a UUID.'),
   image: z.string().url('Invalid image URL format.').optional().nullable(),
 });
 
-// Schema for updating an existing student
+// Schema for updating an existing student.
 export const updateStudentSchema = z
   .object({
     name: z.string().min(1, 'Student name cannot be empty.').optional(),
@@ -62,7 +62,7 @@ export const updateStudentSchema = z
   })
   .refine(
     (data) => {
-      // Ensure at least one field is provided for update
+      // Ensures at least one field is provided for update.
       if (Object.keys(data).length === 0) {
         throw new z.ZodError([
           {
@@ -81,12 +81,12 @@ export const updateStudentSchema = z
     }
   );
 
-// Schema for batch creating students
+// Schema for batch creating students.
 export const batchCreateStudentsSchema = z.object({
-  students: z.array(createStudentSchema), // Array of createStudentSchema objects
+  students: z.array(createStudentSchema),
 });
 
-// Schema for ID parameter validation
+// Schema for ID parameter validation.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });

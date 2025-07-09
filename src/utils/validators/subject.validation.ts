@@ -1,12 +1,12 @@
-// src/utils/validators/subject.validation.ts
+/**
+ * @file src/utils/validators/subject.validation.ts
+ * @description Zod schemas for validating subject related requests.
+ */
 
 import { z } from 'zod';
-import { SubjectType } from '@prisma/client'; // Import SubjectType enum from Prisma client
+import { SubjectType } from '@prisma/client';
 
-/**
- * @dev Zod schema for validating the creation of a new subject.
- * Ensures all required fields are present and have the correct types.
- */
+// Zod schema for validating the creation of a new subject.
 export const createSubjectSchema = z.object({
   name: z.string().min(1, 'Subject name is required.'),
   abbreviation: z
@@ -17,17 +17,14 @@ export const createSubjectSchema = z.object({
     .string()
     .min(1, 'Subject code is required.')
     .max(20, 'Subject code cannot exceed 20 characters.'),
-  type: z.nativeEnum(SubjectType).default(SubjectType.MANDATORY), // Validate against Prisma's SubjectType enum
+  type: z.nativeEnum(SubjectType).default(SubjectType.MANDATORY),
   departmentId: z
     .string()
     .uuid('Invalid department ID format. Must be a UUID.'),
   semesterId: z.string().uuid('Invalid semester ID format. Must be a UUID.'),
 });
 
-/**
- * @dev Zod schema for validating the update of an existing subject.
- * All fields are optional, allowing for partial updates.
- */
+// Zod schema for validating the update of an existing subject.
 export const updateSubjectSchema = z
   .object({
     name: z.string().min(1, 'Subject name cannot be empty.').optional(),
@@ -44,11 +41,11 @@ export const updateSubjectSchema = z
     type: z.nativeEnum(SubjectType).optional(),
     departmentId: z.string().uuid('Invalid department ID format.').optional(),
     semesterId: z.string().uuid('Invalid semester ID format.').optional(),
-    isDeleted: z.boolean().optional(), // Allow updating soft delete status
+    isDeleted: z.boolean().optional(),
   })
   .refine(
     (data) => {
-      // Ensure at least one field is provided for update
+      // Ensures at least one field is provided for update.
       if (Object.keys(data).length === 0) {
         throw new z.ZodError([
           {
@@ -67,37 +64,25 @@ export const updateSubjectSchema = z
     }
   );
 
-/**
- * @dev Zod schema for validating ID parameters in requests.
- * Ensures the ID is a valid UUID format.
- */
+// Zod schema for validating ID parameters in requests.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });
 
-/**
- * @dev Zod schema for validating the semester ID parameter in requests.
- * Ensures the ID is a valid UUID format.
- */
+// Zod schema for validating the semester ID parameter in requests.
 export const semesterIdParamSchema = z.object({
   semesterId: z.string().uuid('Invalid semester ID format. Must be a UUID.'),
 });
 
-/**
- * @dev Zod schema for validating the department abbreviation parameter in requests.
- * Ensures the abbreviation is a string.
- */
+// Zod schema for validating the department abbreviation parameter in requests.
 export const departmentAbbreviationParamSchema = z.object({
   deptAbbr: z
     .string()
     .min(1, 'Department abbreviation cannot be empty.')
-    .optional(), // Optional for fetching all
+    .optional(),
 });
 
-/**
- * @dev Zod schema for validating a batch creation of subjects.
- * Expects an array of objects conforming to `createSubjectSchema`.
- */
+// Zod schema for validating a batch creation of subjects.
 export const batchCreateSubjectsSchema = z.object({
   subjects: z
     .array(createSubjectSchema)

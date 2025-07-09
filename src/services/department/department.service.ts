@@ -5,14 +5,12 @@
  */
 
 import { Department } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import { collegeService } from '../college/college.service'; // Import college service for dependency
+import { prisma } from '../common/prisma.service';
+import { collegeService } from '../college/college.service';
 import AppError from '../../utils/appError';
 
-// Simple in-memory cache for department data
 const departmentCache = new Map<string, Department>();
 
-// Interface for department data input, matching the Zod schema and Prisma input
 interface DepartmentDataInput {
   name: string;
   abbreviation?: string;
@@ -22,24 +20,18 @@ interface DepartmentDataInput {
 }
 
 class DepartmentService {
-  /**
-   * Retrieves all active departments.
-   * Includes related college, semesters, divisions, subjects, faculties, and students.
-   * Only returns departments that are not soft-deleted and belong to a non-soft-deleted college.
-   * @returns An array of Department objects.
-   */
+  // Retrieves all active departments including related data.
   public async getAllDepartments(): Promise<Department[]> {
     try {
       const departments = await prisma.department.findMany({
         where: {
           isDeleted: false,
           college: {
-            // Filter departments whose associated college is also not deleted
             isDeleted: false,
           },
         },
         include: {
-          college: true, // Just include the college, no nested where here
+          college: true,
           semesters: { where: { isDeleted: false } },
           Division: { where: { isDeleted: false } },
           subjects: { where: { isDeleted: false } },
@@ -54,29 +46,19 @@ class DepartmentService {
     }
   }
 
-  /**
-   * Creates a new department or updates an existing one if it matches by name and collegeId.
-   * Handles default values for abbreviation, HOD name, and HOD email.
-   * Automatically upserts the primary college if no collegeId is provided.
-   * @param data - The data for the new department.
-   * @returns The created or updated Department object.
-   * @throws AppError if email already exists or if super admin already exists.
-   */
+  // Creates a new department or updates an existing one.
   public async createDepartment(
     data: DepartmentDataInput
   ): Promise<Department> {
     const { name, abbreviation, hodName, hodEmail } = data;
     let { collegeId } = data;
 
-    // Clear cache on any write operation
     departmentCache.clear();
 
-    // If no collegeId is provided, assume it's for the primary college
     if (!collegeId) {
-      const primaryCollege = await collegeService.upsertPrimaryCollege({}); // Ensure primary college exists
+      const primaryCollege = await collegeService.upsertPrimaryCollege({});
       collegeId = primaryCollege.id;
     } else {
-      // Validate if the provided collegeId exists and is not deleted
       const existingCollege = await prisma.college.findUnique({
         where: { id: collegeId, isDeleted: false },
       });
@@ -88,11 +70,10 @@ class DepartmentService {
       }
     }
 
-    // Generate default values if not provided
     const finalAbbreviation = abbreviation || name;
     const finalHodName = hodName || `HOD of ${name}`;
     const finalHodEmail =
-      hodEmail || `hod.${name.toLowerCase().replace(/\s/g, '')}@ldrp.ac.in`; // Remove spaces for email
+      hodEmail || `hod.${name.toLowerCase().replace(/\s/g, '')}@ldrp.ac.in`;
 
     try {
       const department = await prisma.department.upsert({
@@ -110,7 +91,6 @@ class DepartmentService {
           collegeId: collegeId,
         },
         update: {
-          // Only update if there's new data for these fields, or if they were explicitly provided
           abbreviation:
             abbreviation !== undefined ? abbreviation : finalAbbreviation,
           hodName: hodName !== undefined ? hodName : finalHodName,
@@ -125,7 +105,7 @@ class DepartmentService {
         },
       });
 
-      departmentCache.set(name, department); // Cache by name (or a composite key)
+      departmentCache.set(name, department);
       return department;
     } catch (error: any) {
       console.error('Error in DepartmentService.createDepartment:', error);
@@ -142,16 +122,9 @@ class DepartmentService {
     }
   }
 
-  /**
-   * Retrieves a single department by its ID, excluding soft-deleted ones.
-   * Includes related college, semesters, divisions, subjects, faculties, and students.
-   * Uses in-memory cache.
-   * @param id - The ID of the department to retrieve.
-   * @returns The Department object, or null if not found.
-   */
+  // Retrieves a single department by its ID, using cache.
   public async getDepartmentById(id: string): Promise<Department | null> {
-    // Try to get from cache first (if cached by ID, otherwise it's a miss)
-    let department: Department | null | undefined = departmentCache.get(id); // Assuming cache key is ID for this method
+    let department: Department | null | undefined = departmentCache.get(id);
     if (department) {
       return department;
     }
@@ -162,12 +135,11 @@ class DepartmentService {
           id: id,
           isDeleted: false,
           college: {
-            // Filter departments whose associated college is also not deleted
             isDeleted: false,
           },
         },
         include: {
-          college: true, // Just include the college, no nested where here
+          college: true,
           semesters: { where: { isDeleted: false } },
           Division: { where: { isDeleted: false } },
           subjects: { where: { isDeleted: false } },
@@ -177,7 +149,7 @@ class DepartmentService {
       });
 
       if (department) {
-        departmentCache.set(id, department); // Cache the result by ID
+        departmentCache.set(id, department);
       }
       return department;
     } catch (error: any) {
@@ -186,22 +158,14 @@ class DepartmentService {
     }
   }
 
-  /**
-   * Updates an existing department.
-   * @param id - The ID of the department to update.
-   * @param data - The partial data to update the department with.
-   * @returns The updated Department object.
-   * @throws AppError if the department is not found or update fails.
-   */
+  // Updates an existing department.
   public async updateDepartment(
     id: string,
     data: Partial<DepartmentDataInput>
   ): Promise<Department> {
     try {
-      // Clear cache on any write operation
       departmentCache.clear();
 
-      // If collegeId is provided, validate its existence
       if (data.collegeId) {
         const existingCollege = await prisma.college.findUnique({
           where: { id: data.collegeId, isDeleted: false },
@@ -215,7 +179,7 @@ class DepartmentService {
       }
 
       const department = await prisma.department.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: data,
         include: {
           college: true,
@@ -225,12 +189,11 @@ class DepartmentService {
           Division: true,
         },
       });
-      departmentCache.set(id, department); // Update cache by ID
+      departmentCache.set(id, department);
       return department;
     } catch (error: any) {
       console.error('Error in DepartmentService.updateDepartment:', error);
       if (error.code === 'P2025') {
-        // Prisma error for record not found for update
         throw new AppError('Department not found for update.', 404);
       }
       if (
@@ -246,19 +209,13 @@ class DepartmentService {
     }
   }
 
-  /**
-   * Soft deletes a department by setting its isDeleted flag to true.
-   * @param id - The ID of the department to soft delete.
-   * @returns The soft-deleted Department object.
-   * @throws AppError if the department is not found.
-   */
+  // Soft deletes a department.
   public async softDeleteDepartment(id: string): Promise<Department> {
     try {
-      // Clear cache before deletion
       departmentCache.clear();
 
       const department = await prisma.department.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return department;
@@ -271,24 +228,16 @@ class DepartmentService {
     }
   }
 
-  /**
-   * Performs a batch creation of departments.
-   * Each department is created or updated based on its name and the primary college.
-   * @param departmentsData - An array of department data objects.
-   * @returns An array of created or updated Department objects.
-   * @throws AppError if any department creation/update fails.
-   */
+  // Performs a batch creation of departments.
   public async batchCreateDepartments(
     departmentsData: DepartmentDataInput[]
   ): Promise<Department[]> {
-    // Clear cache before batch operation
     departmentCache.clear();
 
     const results: Department[] = [];
-    const primaryCollege = await collegeService.upsertPrimaryCollege({}); // Ensure primary college exists
+    const primaryCollege = await collegeService.upsertPrimaryCollege({});
 
     for (const dept of departmentsData) {
-      // Generate default values for each department if not provided
       const finalAbbreviation = dept.abbreviation || dept.name;
       const finalHodName = dept.hodName || `HOD of ${dept.name}`;
       const finalHodEmail =

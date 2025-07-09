@@ -41,13 +41,11 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
 
-// Public route for form access via token (does NOT require isAuthenticated)
+// Public route for form access via token
 router.get('/access/:token', getFormByAccessToken);
 
 // Apply authentication middleware to all other feedback form routes
 router.use(isAuthenticated);
-
-// --- More Specific Routes (Literal paths first, then parameterized specific paths) ---
 
 // POST /api/v1/feedback-forms/generate
 router.post(
@@ -70,14 +68,14 @@ router.patch(
   bulkUpdateFormStatus
 );
 
-// POST /api/v1/feedback-forms/:id/questions (Add question to an existing form)
+// POST /api/v1/feedback-forms/:id/questions
 router.post(
   '/:id/questions',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   addQuestionToForm
 );
 
-// PATCH /api/v1/feedback-forms/:id/status (Update form status)
+// PATCH /api/v1/feedback-forms/:id/status
 router.patch(
   '/:id/status',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
@@ -86,7 +84,7 @@ router.patch(
 
 // --- Override Students Routes ---
 
-// POST /api/v1/feedback-forms/:id/override-students/upload (Upload override students)
+// POST /api/v1/feedback-forms/:id/override-students/upload
 router.post(
   '/:id/override-students/upload',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
@@ -94,7 +92,7 @@ router.post(
   uploadOverrideStudents
 );
 
-// GET /api/v1/feedback-forms/:id/override-students/count (Get count of override students)
+// GET /api/v1/feedback-forms/:id/override-students/count
 router.get(
   '/:id/override-students/count',
   authorizeRoles(
@@ -105,7 +103,7 @@ router.get(
   getOverrideStudentsCount
 );
 
-// GET /api/v1/feedback-forms/:id/override-students (Get paginated override students)
+// GET /api/v1/feedback-forms/:id/override-students
 router.get(
   '/:id/override-students',
   authorizeRoles(
@@ -116,7 +114,7 @@ router.get(
   getOverrideStudents
 );
 
-// GET /api/v1/feedback-forms/:id/override-students/all (Get all override students without pagination)
+// GET /api/v1/feedback-forms/:id/override-students/all
 router.get(
   '/:id/override-students/all',
   authorizeRoles(
@@ -127,21 +125,21 @@ router.get(
   getAllOverrideStudents
 );
 
-// DELETE /api/v1/feedback-forms/:id/override-students (Clear all override students)
+// DELETE /api/v1/feedback-forms/:id/override-students
 router.delete(
   '/:id/override-students',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   clearOverrideStudents
 );
 
-// PATCH /api/v1/feedback-forms/:id/override-students/:studentId (Update specific override student)
+// PATCH /api/v1/feedback-forms/:id/override-students/:studentId
 router.patch(
   '/:id/override-students/:studentId',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   updateOverrideStudent
 );
 
-// DELETE /api/v1/feedback-forms/:id/override-students/:studentId (Delete specific override student)
+// DELETE /api/v1/feedback-forms/:id/override-students/:studentId
 router.delete(
   '/:id/override-students/:studentId',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
@@ -150,9 +148,6 @@ router.delete(
 
 // --- Less Specific Routes (Generic ID routes) ---
 
-// GET /api/v1/feedback-forms
-// PATCH /api/v1/feedback-forms/:id
-// DELETE /api/v1/feedback-forms/:id
 router
   .route('/')
   .get(

@@ -5,22 +5,13 @@
 
 import bcrypt from 'bcryptjs';
 
-/**
- * Hashes a plain text password.
- * @param password - The plain text password to hash.
- * @returns The hashed password string.
- */
+// Hashes a plain text password.
 export const hashPassword = async (password: string): Promise<string> => {
-  const salt = await bcrypt.genSalt(10); // Generate a salt with 10 rounds
+  const salt = await bcrypt.genSalt(10);
   return bcrypt.hash(password, salt);
 };
 
-/**
- * Compares a plain text password with a hashed password.
- * @param plainPassword - The plain text password.
- * @param hashedPassword - The hashed password from the database.
- * @returns True if the passwords match, false otherwise.
- */
+// Compares a plain text password with a hashed password.
 export const comparePassword = async (
   plainPassword: string,
   hashedPassword: string

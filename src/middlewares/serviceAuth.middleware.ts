@@ -1,19 +1,14 @@
 /**
  * @file src/middlewares/serviceAuth.middleware.ts
- * @description Middleware for service-to-service authentication using API keys
+ * @description Middleware for service-to-service authentication using API keys.
  */
 
 import { Request, Response, NextFunction } from 'express';
 import AppError from '../utils/appError';
 
-// Generate a secure API key for your services
-const SERVICE_API_KEY =
-  process.env.SERVICE_API_KEY || 'your-secure-api-key-here';
+const SERVICE_API_KEY = process.env.SERVICE_API_KEY;
 
-/**
- * Middleware to authenticate service-to-service requests using API keys
- * This bypasses normal user authentication for internal service calls
- */
+// Authenticates service-to-service requests using API keys.
 export const serviceAuthMiddleware = (
   req: Request,
   _res: Response,
@@ -21,6 +16,7 @@ export const serviceAuthMiddleware = (
 ) => {
   const apiKey = req.headers['x-api-key'];
 
+  // Checks if API key is provided.
   if (!apiKey) {
     throw new AppError(
       'API key is required for service-to-service communication',
@@ -28,11 +24,12 @@ export const serviceAuthMiddleware = (
     );
   }
 
+  // Validates the provided API key.
   if (apiKey !== SERVICE_API_KEY) {
     throw new AppError('Invalid API key', 401);
   }
 
-  // Set a service user context for internal operations
+  // Attaches service user context to the request.
   (req as any).user = {
     id: 'service-account',
     email: 'service@system.internal',

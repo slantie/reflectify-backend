@@ -1,10 +1,13 @@
-// src/services/subjectAllocation/subjectAllocation.service.ts
+/**
+ * @file src/services/subjectAllocation/subjectAllocation.service.ts
+ * @description Service layer for Subject Allocation operations.
+ * Encapsulates business logic, interacts with the Prisma client, and manages subject allocations.
+ */
 
 import { SubjectAllocation, LectureType, Prisma } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
-import AppError from '../../utils/appError'; // Import AppError
+import { prisma } from '../common/prisma.service';
+import AppError from '../../utils/appError';
 
-// Interface for subject allocation data input
 interface SubjectAllocationDataInput {
   facultyId: string;
   subjectId: string;
@@ -12,17 +15,12 @@ interface SubjectAllocationDataInput {
   semesterId: string;
   departmentId: string;
   lectureType: LectureType;
-  academicYear: string; // This is the yearString, e.g., "2023-2024"
+  academicYear: string;
   batch?: string;
 }
 
 class SubjectAllocationService {
-  /**
-   * @dev Retrieves all active subject allocations.
-   * Includes related faculty, subject, division, semester, department, and academic year,
-   * ensuring all related entities are also active.
-   * @returns Promise<SubjectAllocation[]> A list of active subject allocation records.
-   */
+  // Retrieves all active subject allocations.
   public async getAllSubjectAllocations(): Promise<SubjectAllocation[]> {
     try {
       const subjectAllocations = await prisma.subjectAllocation.findMany({
@@ -54,12 +52,7 @@ class SubjectAllocationService {
     }
   }
 
-  /**
-   * @dev Retrieves a single active subject allocation by its ID.
-   * Includes related entities, ensuring they are active.
-   * @param id The UUID of the subject allocation to retrieve.
-   * @returns Promise<SubjectAllocation | null> The subject allocation record, or null if not found or deleted.
-   */
+  // Retrieves a single active subject allocation by its ID.
   public async getSubjectAllocationById(
     id: string
   ): Promise<SubjectAllocation | null> {
@@ -82,8 +75,8 @@ class SubjectAllocationService {
           semester: true,
           department: true,
           academicYear: true,
-          feedbackForms: { where: { isDeleted: false } }, // Include active feedback forms
-          analytics: { where: { isDeleted: false } }, // Include active analytics
+          feedbackForms: { where: { isDeleted: false } },
+          analytics: { where: { isDeleted: false } },
         },
       });
       return subjectAllocation;
@@ -96,15 +89,7 @@ class SubjectAllocationService {
     }
   }
 
-  /**
-   * @dev Creates a new subject allocation record.
-   * Validates existence and active status of all related parent entities.
-   * Resolves academicYear string to its ID.
-   * @param data The data for the subject allocation to create.
-   * @returns Promise<SubjectAllocation> The created subject allocation record.
-   * @throws AppError if related entities are not found or are deleted,
-   * or if there's a unique constraint violation.
-   */
+  // Creates a new subject allocation record.
   public async createSubjectAllocation(
     data: SubjectAllocationDataInput
   ): Promise<SubjectAllocation> {
@@ -119,7 +104,6 @@ class SubjectAllocationService {
       batch,
     } = data;
 
-    // 1. Validate Faculty existence and active status
     const existingFaculty = await prisma.faculty.findUnique({
       where: { id: facultyId, isDeleted: false },
     });
@@ -127,7 +111,6 @@ class SubjectAllocationService {
       throw new AppError('Faculty not found or is deleted.', 400);
     }
 
-    // 2. Validate Subject existence and active status
     const existingSubject = await prisma.subject.findUnique({
       where: { id: subjectId, isDeleted: false },
     });
@@ -135,7 +118,6 @@ class SubjectAllocationService {
       throw new AppError('Subject not found or is deleted.', 400);
     }
 
-    // 3. Validate Division existence and active status
     const existingDivision = await prisma.division.findUnique({
       where: { id: divisionId, isDeleted: false },
     });
@@ -143,7 +125,6 @@ class SubjectAllocationService {
       throw new AppError('Division not found or is deleted.', 400);
     }
 
-    // 4. Validate Semester existence and active status
     const existingSemester = await prisma.semester.findUnique({
       where: { id: semesterId, isDeleted: false },
     });
@@ -151,7 +132,6 @@ class SubjectAllocationService {
       throw new AppError('Semester not found or is deleted.', 400);
     }
 
-    // 5. Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -159,7 +139,6 @@ class SubjectAllocationService {
       throw new AppError('Department not found or is deleted.', 400);
     }
 
-    // 6. Find AcademicYear by academicYear string
     const existingAcademicYear = await prisma.academicYear.findUnique({
       where: { yearString: academicYear, isDeleted: false },
     });
@@ -179,7 +158,7 @@ class SubjectAllocationService {
           semester: { connect: { id: semesterId } },
           department: { connect: { id: departmentId } },
           lectureType,
-          academicYear: { connect: { id: existingAcademicYear.id } }, // Connect using the found ID
+          academicYear: { connect: { id: existingAcademicYear.id } },
           batch,
         },
         include: {
@@ -198,7 +177,6 @@ class SubjectAllocationService {
         error
       );
       if (error.code === 'P2002') {
-        // Unique constraint violation (facultyId, subjectId, divisionId, semesterId, lectureType, batch, academicYearId)
         throw new AppError(
           'A subject allocation with these details already exists.',
           409
@@ -208,20 +186,12 @@ class SubjectAllocationService {
     }
   }
 
-  /**
-   * @dev Updates an existing subject allocation record.
-   * Validates existence and active status of parent entities if their IDs are provided in update data.
-   * @param id The UUID of the subject allocation to update.
-   * @param data The partial data to update the subject allocation with.
-   * @returns Promise<SubjectAllocation> The updated subject allocation record.
-   * @throws AppError if the subject allocation is not found or update fails.
-   */
+  // Updates an existing subject allocation record.
   public async updateSubjectAllocation(
     id: string,
     data: Partial<SubjectAllocationDataInput & { isDeleted?: boolean }>
   ): Promise<SubjectAllocation> {
     try {
-      // First, check if the subject allocation exists and is not deleted
       const existingAllocation = await prisma.subjectAllocation.findUnique({
         where: { id: id, isDeleted: false },
       });
@@ -230,22 +200,20 @@ class SubjectAllocationService {
         throw new AppError('Subject allocation not found or is deleted.', 404);
       }
 
-      // Destructure data to separate relation IDs (which need 'connect') from direct update fields
       const {
         facultyId,
         subjectId,
         divisionId,
         semesterId,
         departmentId,
-        academicYear, // This is the string for lookup
-        ...restOfData // This will contain lectureType, batch, isDeleted, etc.
+        academicYear,
+        ...restOfData
       } = data;
 
       const dataToUpdate: Prisma.SubjectAllocationUpdateInput = {
-        ...restOfData, // Spread direct update fields
+        ...restOfData,
       };
 
-      // Handle related entity updates by connecting to their IDs
       if (facultyId) {
         const faculty = await prisma.faculty.findUnique({
           where: { id: facultyId, isDeleted: false },
@@ -302,7 +270,6 @@ class SubjectAllocationService {
         dataToUpdate.department = { connect: { id: departmentId } };
       }
       if (academicYear) {
-        // This is the yearString
         const academicYearRecord = await prisma.academicYear.findUnique({
           where: { yearString: academicYear, isDeleted: false },
         });
@@ -315,7 +282,7 @@ class SubjectAllocationService {
       }
 
       const updatedAllocation = await prisma.subjectAllocation.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: dataToUpdate,
         include: {
           faculty: true,
@@ -345,18 +312,13 @@ class SubjectAllocationService {
     }
   }
 
-  /**
-   * @dev Soft deletes a subject allocation by setting its isDeleted flag to true.
-   * @param id The UUID of the subject allocation to soft delete.
-   * @returns Promise<SubjectAllocation> The soft-deleted subject allocation record.
-   * @throws AppError if the subject allocation is not found.
-   */
+  // Soft deletes a subject allocation.
   public async softDeleteSubjectAllocation(
     id: string
   ): Promise<SubjectAllocation> {
     try {
       const subjectAllocation = await prisma.subjectAllocation.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return subjectAllocation;

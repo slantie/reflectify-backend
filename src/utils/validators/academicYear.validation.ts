@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-// Schema for creating a new academic year
+// Schema for creating a new academic year.
 export const createAcademicYearSchema = z.object({
   yearString: z
     .string({
@@ -15,7 +15,7 @@ export const createAcademicYearSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-// Schema for updating an existing academic year
+// Schema for updating an existing academic year.
 export const updateAcademicYearSchema = z
   .object({
     yearString: z
@@ -26,14 +26,14 @@ export const updateAcademicYearSchema = z
   })
   .refine(
     (data) => {
-      // Custom validation: At least one field must be provided for update
+      // Custom validation: At least one field must be provided for update.
       if (!data.yearString && data.isActive === undefined) {
         throw new z.ZodError([
           {
             code: z.ZodIssueCode.custom,
             message:
               'No update data provided. At least one field (yearString or isActive) is required.',
-            path: [], // Global error
+            path: [],
           },
         ]);
       }
@@ -45,7 +45,7 @@ export const updateAcademicYearSchema = z
     }
   );
 
-// Schema for ID parameter validation
+// Schema for ID parameter validation.
 export const idParamSchema = z.object({
   id: z.string().uuid({ message: 'Invalid ID format. Must be a UUID.' }),
 });

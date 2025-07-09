@@ -26,13 +26,13 @@ const router = Router();
 // Apply authentication middleware to all subject routes
 router.use(isAuthenticated);
 
-// Routes for specific paths (more specific routes should come first)
+// Routes for specific paths
 router.get(
   '/semester/:semesterId',
   authorizeRoles(
     Designation.SUPER_ADMIN,
     Designation.HOD,
-    Designation.AsstProf,
+    Designation.AsstProf
   ),
   getSubjectsBySemester
 );
@@ -47,14 +47,14 @@ router.post(
   batchCreateSubjects
 );
 
-// Routes for individual subject operations (more generic :id routes come after specific ones)
+// Routes for individual subject operations
 router
   .route('/')
   .get(
     authorizeRoles(
       Designation.SUPER_ADMIN,
       Designation.HOD,
-      Designation.AsstProf,
+      Designation.AsstProf
     ),
     getAllSubjects
   )
@@ -69,7 +69,7 @@ router
     authorizeRoles(
       Designation.SUPER_ADMIN,
       Designation.HOD,
-      Designation.AsstProf,
+      Designation.AsstProf
     ),
     getSubjectById
   )

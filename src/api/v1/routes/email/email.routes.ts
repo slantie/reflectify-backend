@@ -20,7 +20,7 @@ router.use(isAuthenticated);
 // Route to trigger sending feedback form access emails
 router.post(
   '/send-form-access',
-  authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD), // Only Admins/HODs should trigger this
+  authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   sendFormAccessEmails
 );
 

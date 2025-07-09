@@ -1,4 +1,9 @@
-// src/controllers/feedbackQuestion/feedbackQuestion.controller.ts
+/**
+ * @file src/controllers/feedbackQuestion/feedbackQuestion.controller.ts
+ * @description Controller for Feedback Question operations.
+ * Handles request parsing, delegates to FeedbackQuestionService, and sends responses.
+ * Uses asyncHandler for error handling and Zod for validation.
+ */
 
 import { Request, Response } from 'express';
 import { feedbackQuestionService } from '../../services/feedbackQuestion/feedbackQuestion.service';
@@ -14,14 +19,8 @@ import {
   formIdParamSchema,
 } from '../../utils/validators/feedbackQuestion.validation';
 
-/**
- * @description Retrieves all active question categories.
- * @route GET /api/v1/feedback-questions/categories
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf)
- */
 export const getAllQuestionCategories = asyncHandler(
+  // Retrieves all active question categories.
   async (_req: Request, res: Response) => {
     const categories = await feedbackQuestionService.getAllQuestionCategories();
 
@@ -35,17 +34,9 @@ export const getAllQuestionCategories = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves a single question category by ID.
- * @route GET /api/v1/feedback-questions/categories/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf)
- */
 export const getQuestionCategoryById = asyncHandler(
+  // Retrieves a single question category by ID.
   async (req: Request, res: Response) => {
-    // Explicitly create an object with only 'id' from req.params to ensure only 'id' is validated.
-    // This prevents other unexpected parameters like 'formId' from being caught by idParamSchema.
     const { id } = idParamSchema.parse({ id: req.params.id });
 
     const category = await feedbackQuestionService.getQuestionCategoryById(id);
@@ -63,16 +54,10 @@ export const getQuestionCategoryById = asyncHandler(
   }
 );
 
-/**
- * @description Creates a new question category.
- * @route POST /api/v1/feedback-questions/categories
- * @param {Request} req - Express Request object (expects category data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const createQuestionCategory = asyncHandler(
+  // Creates a new question category.
   async (req: Request, res: Response) => {
-    const validatedData = createQuestionCategorySchema.parse(req.body); // Validate request body
+    const validatedData = createQuestionCategorySchema.parse(req.body);
 
     const newCategory =
       await feedbackQuestionService.createQuestionCategory(validatedData);
@@ -87,17 +72,11 @@ export const createQuestionCategory = asyncHandler(
   }
 );
 
-/**
- * @description Updates an existing question category.
- * @route PATCH /api/v1/feedback-questions/categories/:id
- * @param {Request} req - Express Request object (expects id in params, partial category data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const updateQuestionCategory = asyncHandler(
+  // Updates an existing question category.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
-    const validatedData = updateQuestionCategorySchema.parse(req.body); // Validate request body
+    const { id } = idParamSchema.parse(req.params);
+    const validatedData = updateQuestionCategorySchema.parse(req.body);
 
     const updatedCategory =
       await feedbackQuestionService.updateQuestionCategory(id, validatedData);
@@ -112,43 +91,29 @@ export const updateQuestionCategory = asyncHandler(
   }
 );
 
-/**
- * @description Soft deletes a question category.
- * @route DELETE /api/v1/feedback-questions/categories/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const softDeleteQuestionCategory = asyncHandler(
+  // Soft deletes a question category.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     await feedbackQuestionService.softDeleteQuestionCategory(id);
 
     res.status(204).json({
       status: 'success',
       message: 'Question category soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );
 
-// --- Feedback Question Controller Methods ---
-
-/**
- * @description Creates a new feedback question for a specific form.
- * @route POST /api/v1/feedback-questions/form/:formId/questions
- * @param {Request} req - Express Request object (expects formId in params, question data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const createFeedbackQuestion = asyncHandler(
+  // Creates a new feedback question for a specific form.
   async (req: Request, res: Response) => {
-    const { formId } = formIdParamSchema.parse(req.params); // Validate formId from params
+    const { formId } = formIdParamSchema.parse(req.params);
     const validatedData = createFeedbackQuestionSchema.parse({
       ...req.body,
       formId,
-    }); // Merge formId into validated data
+    });
 
     const question =
       await feedbackQuestionService.createFeedbackQuestion(validatedData);
@@ -163,17 +128,11 @@ export const createFeedbackQuestion = asyncHandler(
   }
 );
 
-/**
- * @description Updates an existing feedback question.
- * @route PATCH /api/v1/feedback-questions/questions/:id
- * @param {Request} req - Express Request object (expects id in params, partial question data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const updateFeedbackQuestion = asyncHandler(
+  // Updates an existing feedback question.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
-    const validatedData = updateFeedbackQuestionSchema.parse(req.body); // Validate request body
+    const { id } = idParamSchema.parse(req.params);
+    const validatedData = updateFeedbackQuestionSchema.parse(req.body);
 
     const updatedQuestion =
       await feedbackQuestionService.updateFeedbackQuestion(id, validatedData);
@@ -188,37 +147,25 @@ export const updateFeedbackQuestion = asyncHandler(
   }
 );
 
-/**
- * @description Soft deletes a feedback question.
- * @route DELETE /api/v1/feedback-questions/questions/:id
- * @param {Request} req - Express Request object (expects id in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const softDeleteFeedbackQuestion = asyncHandler(
+  // Soft deletes a feedback question.
   async (req: Request, res: Response) => {
-    const { id } = idParamSchema.parse(req.params); // Validate ID
+    const { id } = idParamSchema.parse(req.params);
 
     await feedbackQuestionService.softDeleteFeedbackQuestion(id);
 
     res.status(204).json({
       status: 'success',
       message: 'Feedback question soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );
 
-/**
- * @description Retrieves active feedback questions for a specific form.
- * @route GET /api/v1/feedback-questions/form/:formId/questions
- * @param {Request} req - Express Request object (expects formId in params)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD, AsstProf, Student)
- */
 export const getFeedbackQuestionsByFormId = asyncHandler(
+  // Retrieves active feedback questions for a specific form.
   async (req: Request, res: Response) => {
-    const { formId } = formIdParamSchema.parse(req.params); // Validate formId
+    const { formId } = formIdParamSchema.parse(req.params);
 
     const questions =
       await feedbackQuestionService.getFeedbackQuestionsByFormId(formId);
@@ -234,16 +181,10 @@ export const getFeedbackQuestionsByFormId = asyncHandler(
   }
 );
 
-/**
- * @description Performs a batch update of feedback questions.
- * @route PATCH /api/v1/feedback-questions/questions/batch
- * @param {Request} req - Express Request object (expects { questions: FeedbackQuestionUpdateInput[] } in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, HOD)
- */
 export const batchUpdateFeedbackQuestions = asyncHandler(
+  // Performs a batch update of feedback questions.
   async (req: Request, res: Response) => {
-    const { questions } = batchUpdateFeedbackQuestionsSchema.parse(req.body); // Validate array of questions
+    const { questions } = batchUpdateFeedbackQuestionsSchema.parse(req.body);
 
     const updatedQuestions =
       await feedbackQuestionService.batchUpdateFeedbackQuestions(questions);

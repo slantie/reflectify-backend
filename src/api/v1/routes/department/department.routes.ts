@@ -27,28 +27,28 @@ router.use(isAuthenticated);
 // Routes for individual department operations
 router
   .route('/')
-  .get(getDepartments) // GET /api/v1/departments
+  .get(getDepartments)
   .post(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     createDepartment
-  ); // POST /api/v1/departments
+  );
 
 router
   .route('/:id')
-  .get(getDepartmentById) // GET /api/v1/departments/:id
+  .get(getDepartmentById)
   .patch(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     updateDepartment
-  ) // PATCH /api/v1/departments/:id
+  )
   .delete(
     authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
     softDeleteDepartment
-  ); // DELETE /api/v1/departments/:id (soft delete)
+  );
 
 router.post(
   '/batch',
   authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
   batchCreateDepartments
-); // POST /api/v1/departments/batch
+);
 
 export default router;

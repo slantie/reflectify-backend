@@ -7,8 +7,8 @@ import AppError from '../../utils/appError';
 import { fileUploadSchema } from '../../utils/validators/upload.validation';
 
 export const uploadStudentData = asyncHandler(
+  // Handles the upload and processing of student data from an Excel file.
   async (req: Request, res: Response) => {
-    // 1. Ensure file exists (Multer should populate req.file)
     if (!req.file) {
       throw new AppError(
         'No file uploaded or file processing failed by multer.',
@@ -16,8 +16,6 @@ export const uploadStudentData = asyncHandler(
       );
     }
 
-    // 2. Validate req.file against the *inner* schema for the file object
-    // fileUploadSchema.shape.file gives us the Zod object schema that describes req.file
     const validationResult = fileUploadSchema.shape.file.safeParse(req.file);
 
     if (!validationResult.success) {
@@ -31,7 +29,6 @@ export const uploadStudentData = asyncHandler(
       throw new AppError(`File validation failed: ${errorMessage}`, 400);
     }
 
-    // If validation passes, req.file is confirmed to be valid
     const result = await studentDataUploadService.processStudentData(
       req.file.buffer
     );

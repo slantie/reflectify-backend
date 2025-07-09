@@ -5,14 +5,11 @@
  */
 
 import { Semester, Prisma, SemesterTypeEnum } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
-// Simple in-memory cache for semester data
-// Keyed by a composite string: `${departmentId}_${semesterNumber}_${academicYearId}_${semesterType}`
 const semesterCache = new Map<string, Semester>();
 
-// Interface for semester data input
 interface SemesterDataInput {
   departmentId: string;
   semesterNumber: number;
@@ -23,13 +20,7 @@ interface SemesterDataInput {
 }
 
 class SemesterService {
-  /**
-   * Retrieves all active semesters, optionally filtered by departmentId, academicYearId, semesterNumber, and semesterType.
-   * Includes related department and academic year.
-   * Only returns semesters that are not soft-deleted and belong to non-soft-deleted parents.
-   * @param filters - Optional filters (departmentId, academicYearId, semesterNumber, semesterType).
-   * @returns An array of Semester objects.
-   */
+  // Retrieves all active semesters, optionally filtered.
   public async getAllSemesters(filters: {
     departmentId?: string;
     academicYearId?: string;
@@ -67,9 +58,8 @@ class SemesterService {
           allocations: { where: { isDeleted: false } },
         },
         orderBy: [
-          // Changed to an array of order by objects
-          { academicYear: { yearString: 'desc' } }, // Order by academic year string
-          { semesterNumber: 'asc' }, // Then by semester number
+          { academicYear: { yearString: 'desc' } },
+          { semesterNumber: 'asc' },
         ],
       });
       return semesters;
@@ -79,13 +69,7 @@ class SemesterService {
     }
   }
 
-  /**
-   * Creates a new semester.
-   * Validates existence and active status of parent department and academic year.
-   * @param data - The data for the new semester.
-   * @returns The created Semester object.
-   * @throws AppError if department/academic year not found or if semester already exists.
-   */
+  // Creates a new semester.
   public async createSemester(data: SemesterDataInput): Promise<Semester> {
     const {
       departmentId,
@@ -96,10 +80,8 @@ class SemesterService {
       semesterType,
     } = data;
 
-    // Clear cache on any write operation
     semesterCache.clear();
 
-    // 1. Validate Department existence and active status
     const existingDepartment = await prisma.department.findUnique({
       where: { id: departmentId, isDeleted: false },
     });
@@ -107,7 +89,6 @@ class SemesterService {
       throw new AppError('Department not found or is deleted.', 400);
     }
 
-    // 2. Validate Academic Year existence and active status
     const existingAcademicYear = await prisma.academicYear.findUnique({
       where: { id: academicYearId, isDeleted: false },
     });
@@ -118,7 +99,6 @@ class SemesterService {
     try {
       const semester = await prisma.semester.upsert({
         where: {
-          // Use the composite unique key defined in your Prisma schema
           departmentId_semesterNumber_academicYearId_semesterType: {
             departmentId,
             semesterNumber,
@@ -135,11 +115,8 @@ class SemesterService {
           semesterType,
         },
         update: {
-          // Update only if specific fields are provided, or keep empty object if no specific update logic
           startDate: startDate ? new Date(startDate) : undefined,
           endDate: endDate ? new Date(endDate) : undefined,
-          // Note: semesterType, departmentId, academicYearId, semesterNumber are part of unique key,
-          // generally not updated in an upsert's update clause if they define uniqueness.
         },
         include: {
           department: true,
@@ -171,15 +148,9 @@ class SemesterService {
     }
   }
 
-  /**
-   * Retrieves a single active semester by its ID.
-   * Includes all related data as per the original controller.
-   * @param id - The ID of the semester to retrieve.
-   * @returns The Semester object, or null if not found.
-   */
+  // Retrieves a single active semester by its ID.
   public async getSemesterById(id: string): Promise<Semester | null> {
-    // Try to get from cache first (if cached by ID, otherwise it's a miss)
-    let semester: Semester | null | undefined = semesterCache.get(id); // Assuming cache key is ID for this method
+    let semester: Semester | null | undefined = semesterCache.get(id);
     if (semester) {
       return semester;
     }
@@ -203,7 +174,7 @@ class SemesterService {
       });
 
       if (semester) {
-        semesterCache.set(id, semester); // Cache the result by ID
+        semesterCache.set(id, semester);
       }
       return semester;
     } catch (error: any) {
@@ -212,23 +183,14 @@ class SemesterService {
     }
   }
 
-  /**
-   * Updates an existing semester.
-   * Validates existence and active status of parent department and academic year if their IDs are provided.
-   * @param id - The ID of the semester to update.
-   * @param data - The partial data to update the semester with.
-   * @returns The updated Semester object.
-   * @throws AppError if the semester is not found or update fails.
-   */
+  // Updates an existing semester.
   public async updateSemester(
     id: string,
     data: Partial<SemesterDataInput>
   ): Promise<Semester> {
     try {
-      // Clear cache on any write operation
       semesterCache.clear();
 
-      // Validate Department existence if departmentId is provided
       if (data.departmentId) {
         const existingDepartment = await prisma.department.findUnique({
           where: { id: data.departmentId, isDeleted: false },
@@ -241,7 +203,6 @@ class SemesterService {
         }
       }
 
-      // Validate Academic Year existence if academicYearId is provided
       if (data.academicYearId) {
         const existingAcademicYear = await prisma.academicYear.findUnique({
           where: { id: data.academicYearId, isDeleted: false },
@@ -255,7 +216,7 @@ class SemesterService {
       }
 
       const semester = await prisma.semester.update({
-        where: { id: id, isDeleted: false }, // Ensure it's active
+        where: { id: id, isDeleted: false },
         data: {
           ...data,
           startDate: data.startDate ? new Date(data.startDate) : undefined,
@@ -270,12 +231,11 @@ class SemesterService {
           allocations: { where: { isDeleted: false } },
         },
       });
-      semesterCache.set(id, semester); // Update cache by ID
+      semesterCache.set(id, semester);
       return semester;
     } catch (error: any) {
       console.error('Error in SemesterService.updateSemester:', error);
       if (error.code === 'P2025') {
-        // Prisma error for record not found for update
         throw new AppError('Semester not found for update.', 404);
       }
       if (
@@ -293,19 +253,13 @@ class SemesterService {
     }
   }
 
-  /**
-   * Soft deletes a semester by setting its isDeleted flag to true.
-   * @param id - The ID of the semester to soft delete.
-   * @returns The soft-deleted Semester object.
-   * @throws AppError if the semester is not found.
-   */
+  // Soft deletes a semester.
   public async softDeleteSemester(id: string): Promise<Semester> {
     try {
-      // Clear cache before deletion
       semesterCache.clear();
 
       const semester = await prisma.semester.update({
-        where: { id: id, isDeleted: false }, // Ensure it's not already soft-deleted
+        where: { id: id, isDeleted: false },
         data: { isDeleted: true },
       });
       return semester;
@@ -318,23 +272,15 @@ class SemesterService {
     }
   }
 
-  /**
-   * Performs a batch creation of semesters.
-   * Validates existence and active status of parent department and academic year for each semester.
-   * @param semestersData - An array of semester data objects.
-   * @returns An array of created or updated Semester objects.
-   * @throws AppError if any semester creation/update fails due to invalid parent IDs or unique constraints.
-   */
+  // Performs a batch creation of semesters.
   public async batchCreateSemesters(
     semestersData: SemesterDataInput[]
   ): Promise<Semester[]> {
-    // Clear cache before batch operation
     semesterCache.clear();
 
     const results: Semester[] = [];
 
     for (const sem of semestersData) {
-      // Validate Department existence and active status for each semester
       const existingDepartment = await prisma.department.findUnique({
         where: { id: sem.departmentId, isDeleted: false },
       });
@@ -345,7 +291,6 @@ class SemesterService {
         );
       }
 
-      // Validate Academic Year existence and active status for each semester
       const existingAcademicYear = await prisma.academicYear.findUnique({
         where: { id: sem.academicYearId, isDeleted: false },
       });
@@ -413,17 +358,11 @@ class SemesterService {
     return results;
   }
 
-  /**
-   * Retrieves all active semesters for a specific department.
-   * @param departmentId - The ID of the department.
-   * @returns An array of Semester objects.
-   * @throws AppError if the department is not found or retrieval fails.
-   */
+  // Retrieves all active semesters for a specific department.
   public async getSemestersByDepartmentId(
     departmentId: string
   ): Promise<Semester[]> {
     try {
-      // Validate Department existence and active status
       const existingDepartment = await prisma.department.findUnique({
         where: { id: departmentId, isDeleted: false },
       });
@@ -435,10 +374,10 @@ class SemesterService {
         where: {
           departmentId: departmentId,
           isDeleted: false,
-          academicYear: { isDeleted: false }, // Ensure academic year is also active
+          academicYear: { isDeleted: false },
         },
         include: {
-          academicYear: true, // Include academic year details
+          academicYear: true,
           divisions: { where: { isDeleted: false } },
           subjects: { where: { isDeleted: false } },
           students: { where: { isDeleted: false } },

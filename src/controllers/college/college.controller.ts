@@ -13,26 +13,13 @@ import {
   createCollegeSchema,
   updateCollegeSchema,
   batchUpdateCollegeSchema,
-  //   idParamSchema, // Keep for consistency, though not used with fixed COLLEGE_ID
 } from '../../utils/validators/college.validation';
 
-// Define the fixed COLLEGE_ID here, as it's a specific application-level constant
-// that the controller uses to interact with the service.
-// const PRIMARY_COLLEGE_ID = 'LDRP-ITR'; // Matches the ID used in the service
-
-/**
- * @description Retrieves all active colleges.
- * @route GET /api/v1/colleges
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const getColleges = asyncHandler(
+  // Retrieves all active colleges.
   async (_req: Request, res: Response) => {
-    // Delegate to service layer
     const colleges = await collegeService.getAllColleges();
 
-    // Send success response
     res.status(200).json({
       status: 'success',
       results: colleges.length,
@@ -43,22 +30,13 @@ export const getColleges = asyncHandler(
   }
 );
 
-/**
- * @description Creates or updates the primary college.
- * @route POST /api/v1/colleges
- * @param {Request} req - Express Request object (expects college data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin, likely Super Admin for initial setup)
- */
 export const upsertPrimaryCollege = asyncHandler(
+  // Creates or updates the primary college.
   async (req: Request, res: Response) => {
-    // 1. Validate request body using Zod
     const validatedData = createCollegeSchema.parse(req.body);
 
-    // 2. Delegate to service layer to create or update the primary college
     const college = await collegeService.upsertPrimaryCollege(validatedData);
 
-    // 3. Send success response
     res.status(201).json({
       status: 'success',
       message: 'College created/updated successfully.',
@@ -69,24 +47,15 @@ export const upsertPrimaryCollege = asyncHandler(
   }
 );
 
-/**
- * @description Retrieves the primary college by its fixed ID.
- * @route GET /api/v1/colleges/primary
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const getPrimaryCollege = asyncHandler(
+  // Retrieves the primary college by its fixed ID.
   async (_req: Request, res: Response) => {
-    // Delegate to service layer to get the primary college
     const college = await collegeService.getPrimaryCollege();
 
-    // Handle not found scenario
     if (!college) {
       throw new AppError('Primary college not found.', 404);
     }
 
-    // Send success response
     res.status(200).json({
       status: 'success',
       data: {
@@ -96,22 +65,13 @@ export const getPrimaryCollege = asyncHandler(
   }
 );
 
-/**
- * @description Updates the primary college.
- * @route PATCH /api/v1/colleges/primary
- * @param {Request} req - Express Request object (expects partial college data in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const updatePrimaryCollege = asyncHandler(
+  // Updates the primary college.
   async (req: Request, res: Response) => {
-    // 1. Validate request body using Zod
     const validatedData = updateCollegeSchema.parse(req.body);
 
-    // 2. Delegate to service layer
     const college = await collegeService.updatePrimaryCollege(validatedData);
 
-    // 3. Send success response
     res.status(200).json({
       status: 'success',
       message: 'College updated successfully.',
@@ -122,43 +82,26 @@ export const updatePrimaryCollege = asyncHandler(
   }
 );
 
-/**
- * @description Soft deletes the primary college.
- * @route DELETE /api/v1/colleges/primary
- * @param {Request} req - Express Request object
- * @param {Response} res - Express Response object
- * @access Private (Admin, likely Super Admin)
- */
 export const softDeletePrimaryCollege = asyncHandler(
+  // Soft deletes the primary college.
   async (_req: Request, res: Response) => {
-    // Delegate to service layer (soft delete)
     await collegeService.softDeletePrimaryCollege();
 
-    // Send success response (204 No Content for successful deletion)
     res.status(204).json({
       status: 'success',
       message: 'College soft-deleted successfully.',
-      data: null, // No content for 204
+      data: null,
     });
   }
 );
 
-/**
- * @description Performs a batch update on the primary college.
- * @route PATCH /api/v1/colleges/primary/batch-update
- * @param {Request} req - Express Request object (expects { updates: Partial<CollegeData> } in body)
- * @param {Response} res - Express Response object
- * @access Private (Admin)
- */
 export const batchUpdatePrimaryCollege = asyncHandler(
+  // Performs a batch update on the primary college.
   async (req: Request, res: Response) => {
-    // 1. Validate request body using Zod
     const { updates } = batchUpdateCollegeSchema.parse(req.body);
 
-    // 2. Delegate to service layer
     const college = await collegeService.batchUpdatePrimaryCollege(updates);
 
-    // 3. Send success response
     res.status(200).json({
       status: 'success',
       message: 'Batch update successful.',

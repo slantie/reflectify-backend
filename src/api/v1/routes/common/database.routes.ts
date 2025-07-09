@@ -15,12 +15,9 @@ const router = Router();
 
 // Apply authentication and authorization middleware
 router.use(isAuthenticated);
-router.use(authorizeRoles(Designation.SUPER_ADMIN)); // Only Super Admin can clean the database
+router.use(authorizeRoles(Designation.SUPER_ADMIN));
 
-/**
- * @route DELETE /api/v1/database/clean
- * @description Endpoint to clean all database tables.
- */
+// Endpoint to clean all database tables.
 router.delete('/clean', cleanDatabase);
 
 export default router;

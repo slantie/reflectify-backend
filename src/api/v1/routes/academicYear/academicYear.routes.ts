@@ -17,18 +17,15 @@ import {
 const router = Router();
 
 // Define routes for Academic Years
-router
-  .route('/')
-  .post(createAcademicYear) // POST /api/v1/academic-years
-  .get(getAllAcademicYears); // GET /api/v1/academic-years
+router.route('/').post(createAcademicYear).get(getAllAcademicYears);
 
 router
   .route('/:id')
-  .get(getAcademicYearById) // GET /api/v1/academic-years/:id
-  .patch(updateAcademicYear) // PATCH /api/v1/academic-years/:id (using PATCH for partial updates)
-  .delete(deleteAcademicYear); // DELETE /api/v1/academic-years/:id (soft delete)
+  .get(getAcademicYearById)
+  .patch(updateAcademicYear)
+  .delete(deleteAcademicYear);
 
 // Route to get the active academic year
-router.route('/active').get(getActiveAcademicYear); // GET /api/v1/academic-years/active
+router.route('/active').get(getActiveAcademicYear);
 
 export default router;

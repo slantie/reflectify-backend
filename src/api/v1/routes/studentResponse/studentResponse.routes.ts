@@ -12,9 +12,7 @@ import {
 
 const router = Router();
 
-// These routes are public as they are accessed by students via a unique token,
-// and do not require prior general authentication.
-// The service layer handles token validation and form access checks.
+// These routes are public as they are accessed by students via a unique token, and do not require prior general authentication.
 
 // POST /api/v1/student-responses/submit/:token
 router.post('/submit/:token', submitResponses);

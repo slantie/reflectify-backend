@@ -5,15 +5,13 @@
  */
 
 import { College, Prisma } from '@prisma/client';
-import { prisma } from '../common/prisma.service'; // Import the singleton Prisma client
+import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
 // Define the fixed COLLEGE_ID as per the original controller logic
 const COLLEGE_ID = 'LDRP-ITR'; // Consider making this configurable if more colleges are added
 
 // Simple in-memory cache for the primary college data
-// NOTE: This cache is only effective for a single-instance Node.js application.
-// For multi-instance deployments, consider a distributed cache like Redis.
 const collegeCache = new Map<string, College>();
 
 // Interface for college data, matching the Prisma schema structure for INPUT
@@ -34,15 +32,11 @@ const defaultCollegeData: CollegeDataInput = {
   address: 'Gujarat',
   contactNumber: '7923241492',
   logo: 'ldrp_logo.png',
-  images: {}, // This is a valid Prisma.JsonObject, which is a Prisma.InputJsonValue
+  images: {},
 };
 
 class CollegeService {
-  /**
-   * Retrieves all active colleges.
-   * Includes related departments, semesters, divisions, subjects, faculties, and students.
-   * @returns An array of College objects.
-   */
+  // Retrieves all active colleges including related data.
   public async getAllColleges(): Promise<College[]> {
     try {
       const colleges = await prisma.college.findMany({
@@ -67,15 +61,7 @@ class CollegeService {
     }
   }
 
-  /**
-   * Creates or updates the primary college based on COLLEGE_ID.
-   * If the college with COLLEGE_ID does not exist, it creates it with default data.
-   * Otherwise, it updates the existing college with provided data.
-   * Manages the in-memory cache.
-   * @param data - The data to update the college with.
-   * @returns The created or updated College object.
-   * @throws AppError if the operation fails due to database constraints or other errors.
-   */
+  // Creates or updates the primary college and manages cache.
   public async upsertPrimaryCollege(
     data: Partial<CollegeDataInput>
   ): Promise<College> {
@@ -118,12 +104,7 @@ class CollegeService {
     }
   }
 
-  /**
-   * Retrieves the primary college by its fixed ID.
-   * Includes related departments, semesters, divisions, subjects, faculties, and students.
-   * Uses in-memory cache for faster retrieval.
-   * @returns The College object, or null if not found.
-   */
+  // Retrieves the primary college, using cache for faster retrieval.
   public async getPrimaryCollege(): Promise<College | null> {
     // Try to get from cache first
     // Explicitly type 'college' to allow for null or undefined
@@ -159,12 +140,7 @@ class CollegeService {
     }
   }
 
-  /**
-   * Updates the primary college with provided data.
-   * @param data - The partial data to update the college with.
-   * @returns The updated College object.
-   * @throws AppError if the college is not found or update fails.
-   */
+  // Updates the primary college with provided data.
   public async updatePrimaryCollege(
     data: Partial<CollegeDataInput>
   ): Promise<College> {
@@ -202,18 +178,7 @@ class CollegeService {
     }
   }
 
-  /**
-   * Soft deletes the primary college by setting its isDeleted flag to true.
-   * @returns The soft-deleted College object.
-   * @throws AppError if the college is not found.
-   *
-   * IMPORTANT: Due to `onDelete: Restrict` in your schema, attempting to soft-delete a college
-   * that has active dependent records (e.g., departments) will still succeed in marking `isDeleted: true`.
-   * However, if you were to attempt a hard delete, Prisma would prevent it.
-   * If business logic requires preventing soft-delete when active dependents exist,
-   * you would add manual count checks here similar to your original academic year delete.
-   * For now, we proceed with simple soft delete.
-   */
+  // Soft deletes the primary college.
   public async softDeletePrimaryCollege(): Promise<College> {
     try {
       // Clear cache before deletion
@@ -233,13 +198,7 @@ class CollegeService {
     }
   }
 
-  /**
-   * Performs a batch update on the primary college.
-   * This method assumes the `updates` object contains the fields to be updated.
-   * @param updates - An object containing the fields to update.
-   * @returns The updated College object.
-   * @throws AppError if the college is not found or update fails.
-   */
+  // Performs a batch update on the primary college.
   public async batchUpdatePrimaryCollege(
     updates: Partial<CollegeDataInput>
   ): Promise<College> {
@@ -251,9 +210,6 @@ class CollegeService {
       const imagesForPrisma =
         updates.images === null ? Prisma.JsonNull : updates.images;
 
-      // Use a transaction for atomicity if multiple related updates were involved,
-      // but for a single college update, a direct update is fine.
-      // Keeping $transaction as in original for consistency.
       const college = await prisma.$transaction(async (tx) => {
         const result = await tx.college.update({
           where: { id: COLLEGE_ID, isDeleted: false }, // Ensure it's active
