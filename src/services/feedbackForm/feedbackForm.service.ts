@@ -244,7 +244,16 @@ class FeedbackFormService {
         },
         include: {
           questions: { where: { isDeleted: false } },
-          division: true,
+          division: {
+            include: {
+              department: true,
+              semester: {
+                include: {
+                  academicYear: true,
+                },
+              },
+            },
+          },
           subjectAllocation: {
             include: {
               faculty: true,
@@ -279,7 +288,16 @@ class FeedbackFormService {
               category: true,
             },
           },
-          division: true,
+          division: {
+            include: {
+              department: true,
+              semester: {
+                include: {
+                  academicYear: true,
+                },
+              },
+            },
+          },
           subjectAllocation: true,
         },
       });
@@ -324,7 +342,16 @@ class FeedbackFormService {
               category: true,
             },
           },
-          division: true,
+          division: {
+            include: {
+              department: true,
+              semester: {
+                include: {
+                  academicYear: true,
+                },
+              },
+            },
+          },
         },
       });
       return updatedForm;
@@ -472,6 +499,16 @@ class FeedbackFormService {
               category: true,
             },
           },
+          division: {
+            include: {
+              department: true,
+              semester: {
+                include: {
+                  academicYear: true,
+                },
+              },
+            },
+          },
         },
       });
       return updatedForm;
@@ -505,7 +542,16 @@ class FeedbackFormService {
           endDate: data.endDate ? new Date(data.endDate) : undefined,
         },
         include: {
-          division: true,
+          division: {
+            include: {
+              department: true,
+              semester: {
+                include: {
+                  academicYear: true,
+                },
+              },
+            },
+          },
           questions: {
             include: {
               faculty: true,
@@ -600,7 +646,16 @@ class FeedbackFormService {
               endDate: endDate ? new Date(endDate) : undefined,
             },
             include: {
-              division: true,
+              division: {
+                include: {
+                  department: true,
+                  semester: {
+                    include: {
+                      academicYear: true,
+                    },
+                  },
+                },
+              },
               questions: {
                 include: {
                   faculty: true,
@@ -644,6 +699,16 @@ class FeedbackFormService {
                   faculty: true,
                   subject: true,
                   category: true,
+                },
+              },
+              division: {
+                include: {
+                  department: true,
+                  semester: {
+                    include: {
+                      academicYear: true,
+                    },
+                  },
                 },
               },
             },

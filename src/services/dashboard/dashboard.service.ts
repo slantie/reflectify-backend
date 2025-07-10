@@ -35,7 +35,7 @@ class DashboardService {
         academicYearCount,
         activeAcademicYear,
       ] = await Promise.all([
-        prisma.studentResponse.count({ where: { isDeleted: false } }),
+        prisma.feedbackSnapshot.count(),
         prisma.faculty.count({ where: { isDeleted: false } }),
         prisma.student.count({ where: { isDeleted: false } }),
         prisma.department.count({ where: { isDeleted: false } }),
