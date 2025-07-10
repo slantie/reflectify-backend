@@ -10,6 +10,8 @@ import {
   Division,
   FormStatus,
   Prisma,
+  Semester,
+  Department,
 } from '@prisma/client';
 import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
@@ -83,8 +85,12 @@ class FeedbackFormService {
   }
 
   // Generates a dynamic title for a feedback form.
-  private generateFormTitle(division: Division): string {
-    return `Student Feedback Form - ${division.divisionName}`;
+  private generateFormTitle(
+    department: Department,
+    division: Division,
+    semester: Semester
+  ): string {
+    return `${department.abbreviation} ${semester.semesterNumber}${division.divisionName} - Student Feedback Form`;
   }
 
   // Generates a random alphanumeric hash for form access.
@@ -197,7 +203,11 @@ class FeedbackFormService {
             data: {
               division: { connect: { id: divisionId } },
               subjectAllocation: { connect: { id: firstAllocation.id } },
-              title: this.generateFormTitle(existingDivision),
+              title: this.generateFormTitle(
+                existingDivision.department,
+                existingDivision,
+                existingSemester
+              ),
               status: 'DRAFT',
               startDate: new Date(),
               endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
