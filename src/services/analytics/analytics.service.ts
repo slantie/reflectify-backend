@@ -1416,6 +1416,327 @@ class AnalyticsService {
   }
 
   // Gets complete analytics data based on filters.
+  // public async getCompleteAnalyticsData(
+  //   academicYearId?: string,
+  //   departmentId?: string,
+  //   subjectId?: string,
+  //   semesterId?: string,
+  //   divisionId?: string,
+  //   lectureType?: LectureType,
+  //   includeDeleted = false
+  // ): Promise<CompleteAnalyticsDataOutput> {
+  //   try {
+  //     const semesterWhereClause: Prisma.SemesterWhereInput = {
+  //       isDeleted: includeDeleted ? undefined : false,
+  //     };
+
+  //     if (!includeDeleted) {
+  //       semesterWhereClause.department = {
+  //         isDeleted: false,
+  //       };
+  //     }
+
+  //     if (academicYearId) {
+  //       semesterWhereClause.academicYearId = academicYearId;
+  //     }
+
+  //     if (departmentId) {
+  //       semesterWhereClause.departmentId = departmentId;
+  //     }
+
+  //     if (semesterId) {
+  //       semesterWhereClause.id = semesterId;
+  //     }
+
+  //     const semesters = await prisma.semester.findMany({
+  //       where: semesterWhereClause,
+  //       include: {
+  //         academicYear: true,
+  //         department: true,
+  //         allocations: {
+  //           where: {
+  //             isDeleted: false,
+  //           },
+  //           select: {
+  //             feedbackForms: {
+  //               where: {
+  //                 isDeleted: false,
+  //               },
+  //               select: {
+  //                 responses: {
+  //                   where: {
+  //                     isDeleted: false,
+  //                   },
+  //                   select: {
+  //                     id: true,
+  //                   },
+  //                 },
+  //               },
+  //             },
+  //           },
+  //         },
+  //       },
+  //       orderBy: [
+  //         { academicYear: { yearString: 'desc' } },
+  //         { semesterNumber: 'asc' },
+  //       ],
+  //     });
+
+  //     const formattedSemesters = semesters.map((semester) => {
+  //       const responseCount = semester.allocations.reduce(
+  //         (total, allocation) => {
+  //           return (
+  //             total +
+  //             allocation.feedbackForms.reduce((formTotal, form) => {
+  //               return formTotal + form.responses.length;
+  //             }, 0)
+  //           );
+  //         },
+  //         0
+  //       );
+
+  //       return {
+  //         id: semester.id,
+  //         semesterNumber: semester.semesterNumber,
+  //         departmentId: semester.departmentId,
+  //         academicYearId: semester.academicYearId,
+  //         startDate: semester.startDate?.toISOString() || null,
+  //         endDate: semester.endDate?.toISOString() || null,
+  //         semesterType: semester.semesterType.toString(),
+  //         department: semester.department || {
+  //           id: semester.departmentId,
+  //           name: 'Unknown Department',
+  //           abbreviation: 'UNK',
+  //           isDeleted: false,
+  //           createdAt: new Date(),
+  //           updatedAt: new Date(),
+  //         },
+  //         academicYear: semester.academicYear,
+  //         responseCount,
+  //       };
+  //     });
+
+  //     const snapshotWhereClause: Prisma.FeedbackSnapshotWhereInput = {
+  //       isDeleted: includeDeleted ? undefined : false,
+  //       formIsDeleted: includeDeleted ? undefined : false,
+  //     };
+
+  //     if (academicYearId) {
+  //       snapshotWhereClause.academicYearId = academicYearId;
+  //     }
+
+  //     if (departmentId) {
+  //       snapshotWhereClause.departmentId = departmentId;
+  //     }
+
+  //     if (subjectId) {
+  //       snapshotWhereClause.subjectId = subjectId;
+  //     }
+
+  //     if (semesterId) {
+  //       snapshotWhereClause.semesterId = semesterId;
+  //     }
+
+  //     if (divisionId) {
+  //       snapshotWhereClause.divisionId = divisionId;
+  //     }
+
+  //     if (semesterId) {
+  //       snapshotWhereClause.semesterId = semesterId;
+  //     }
+
+  //     if (divisionId) {
+  //       snapshotWhereClause.divisionId = divisionId;
+  //     }
+
+  //     let feedbackSnapshots = await prisma.feedbackSnapshot.findMany({
+  //       where: snapshotWhereClause,
+  //       select: {
+  //         id: true,
+  //         academicYearId: true,
+  //         academicYearString: true,
+  //         departmentId: true,
+  //         departmentName: true,
+  //         departmentAbbreviation: true,
+  //         semesterId: true,
+  //         semesterNumber: true,
+  //         divisionId: true,
+  //         divisionName: true,
+  //         subjectId: true,
+  //         subjectName: true,
+  //         subjectAbbreviation: true,
+  //         subjectCode: true,
+  //         facultyId: true,
+  //         facultyName: true,
+  //         facultyAbbreviation: true,
+  //         studentId: true,
+  //         studentEnrollmentNumber: true,
+  //         formId: true,
+  //         formStatus: true,
+  //         questionId: true,
+  //         questionType: true,
+  //         questionCategoryId: true,
+  //         questionCategoryName: true,
+  //         questionBatch: true,
+  //         responseValue: true,
+  //         batch: true,
+  //         submittedAt: true,
+  //         createdAt: true,
+  //       },
+  //       orderBy: [{ semesterNumber: 'asc' }, { subjectName: 'asc' }],
+  //     });
+
+  //     if (lectureType) {
+  //       feedbackSnapshots = feedbackSnapshots.filter((snapshot) => {
+  //         let snapshotLectureType: LectureType;
+  //         if (
+  //           snapshot.questionCategoryName
+  //             ?.toLowerCase()
+  //             .includes('laboratory') ||
+  //           snapshot.questionCategoryName?.toLowerCase().includes('lab')
+  //         ) {
+  //           snapshotLectureType = LectureType.LAB;
+  //         } else if (
+  //           snapshot.questionBatch &&
+  //           snapshot.questionBatch.toLowerCase() !== 'none'
+  //         ) {
+  //           snapshotLectureType = LectureType.LAB;
+  //         } else {
+  //           snapshotLectureType = LectureType.LECTURE;
+  //         }
+
+  //         return snapshotLectureType === lectureType;
+  //       });
+  //     }
+
+  //     const groupedSnapshots = this.groupBy(feedbackSnapshots, (snapshot) => {
+  //       let lectureType: LectureType;
+  //       if (
+  //         snapshot.questionCategoryName?.toLowerCase().includes('laboratory') ||
+  //         snapshot.questionCategoryName?.toLowerCase().includes('lab')
+  //       ) {
+  //         lectureType = LectureType.LAB;
+  //       } else {
+  //         lectureType = LectureType.LECTURE;
+  //       }
+
+  //       return `${snapshot.subjectName}|${lectureType}|${snapshot.semesterNumber}`;
+  //     });
+
+  //     const subjectRatings = Object.entries(groupedSnapshots).map(
+  //       ([key, snapshots]) => {
+  //         const [subjectName, lectureType, semesterNumberStr] = key.split('|');
+  //         const semesterNumber = parseInt(semesterNumberStr);
+
+  //         const numericResponses = snapshots
+  //           .map((snapshot) =>
+  //             this.parseResponseValueToScore(snapshot.responseValue)
+  //           )
+  //           .filter((score): score is number => score !== null);
+
+  //         const avgRating =
+  //           numericResponses.length > 0
+  //             ? numericResponses.reduce((acc, score) => acc + score, 0) /
+  //               numericResponses.length
+  //             : 0;
+
+  //         const firstSnapshot = snapshots[0];
+
+  //         return {
+  //           subjectId: firstSnapshot.subjectId,
+  //           subjectName: subjectName,
+  //           subjectAbbreviation: firstSnapshot.subjectAbbreviation,
+  //           lectureType: lectureType as LectureType,
+  //           averageRating: Number(avgRating.toFixed(2)),
+  //           responseCount: snapshots.length,
+  //           semesterNumber: semesterNumber,
+  //           academicYearId: firstSnapshot.academicYearId,
+  //           facultyId: firstSnapshot.facultyId,
+  //           facultyName: firstSnapshot.facultyName,
+  //         };
+  //       }
+  //     );
+
+  //     const semesterTrendsGrouped = this.groupBy(
+  //       feedbackSnapshots,
+  //       (snapshot) => `${snapshot.subjectName}|${snapshot.semesterNumber}`
+  //     );
+
+  //     const semesterTrends = Object.entries(semesterTrendsGrouped).map(
+  //       ([key, snapshots]) => {
+  //         const [subjectName, semesterNumberStr] = key.split('|');
+  //         const semesterNumber = parseInt(semesterNumberStr);
+
+  //         const numericResponses = snapshots
+  //           .map((snapshot) =>
+  //             this.parseResponseValueToScore(snapshot.responseValue)
+  //           )
+  //           .filter((score): score is number => score !== null);
+
+  //         const avgRating =
+  //           numericResponses.length > 0
+  //             ? numericResponses.reduce((acc, score) => acc + score, 0) /
+  //               numericResponses.length
+  //             : 0;
+
+  //         const firstSnapshot = snapshots[0];
+
+  //         return {
+  //           subject: subjectName,
+  //           semester: semesterNumber,
+  //           averageRating: Number(avgRating.toFixed(2)),
+  //           responseCount: snapshots.length,
+  //           academicYearId: firstSnapshot.academicYearId,
+  //           academicYear: firstSnapshot.academicYearString,
+  //         };
+  //       }
+  //     );
+
+  //     return {
+  //       semesters: formattedSemesters,
+  //       subjectRatings,
+  //       semesterTrends,
+  //       feedbackSnapshots: feedbackSnapshots.map((snapshot) => ({
+  //         id: snapshot.id,
+  //         academicYearId: snapshot.academicYearId,
+  //         academicYearString: snapshot.academicYearString,
+  //         departmentId: snapshot.departmentId,
+  //         departmentName: snapshot.departmentName,
+  //         departmentAbbreviation: snapshot.departmentAbbreviation,
+  //         semesterId: snapshot.semesterId,
+  //         semesterNumber: snapshot.semesterNumber,
+  //         divisionId: snapshot.divisionId,
+  //         divisionName: snapshot.divisionName,
+  //         subjectId: snapshot.subjectId,
+  //         subjectName: snapshot.subjectName,
+  //         subjectAbbreviation: snapshot.subjectAbbreviation,
+  //         subjectCode: snapshot.subjectCode,
+  //         facultyId: snapshot.facultyId,
+  //         facultyName: snapshot.facultyName,
+  //         facultyAbbreviation: snapshot.facultyAbbreviation,
+  //         studentId: snapshot.studentId || null,
+  //         studentEnrollmentNumber: snapshot.studentEnrollmentNumber,
+  //         formId: snapshot.formId,
+  //         formStatus: snapshot.formStatus,
+  //         questionId: snapshot.questionId,
+  //         questionType: snapshot.questionType,
+  //         questionCategoryId: snapshot.questionCategoryId,
+  //         questionCategoryName: snapshot.questionCategoryName,
+  //         questionBatch: snapshot.questionBatch,
+  //         responseValue: snapshot.responseValue,
+  //         batch: snapshot.batch,
+  //         submittedAt: snapshot.submittedAt.toISOString(),
+  //         createdAt: snapshot.createdAt.toISOString(),
+  //       })),
+  //     };
+  //   } catch (error: any) {
+  //     console.error(
+  //       'Error in AnalyticsService.getCompleteAnalyticsData:',
+  //       error
+  //     );
+  //     throw new AppError('Failed to retrieve complete analytics data.', 500);
+  //   }
+  // }
   public async getCompleteAnalyticsData(
     academicYearId?: string,
     departmentId?: string,
@@ -1517,10 +1838,25 @@ class AnalyticsService {
       });
 
       const snapshotWhereClause: Prisma.FeedbackSnapshotWhereInput = {
+        // Main snapshot deletion filter
         isDeleted: includeDeleted ? undefined : false,
-        formIsDeleted: includeDeleted ? undefined : false,
       };
 
+      // If not including deleted, filter out all entities that are marked as deleted
+      if (!includeDeleted) {
+        snapshotWhereClause.AND = [
+          { academicYearIsDeleted: false },
+          { departmentIsDeleted: false },
+          { semesterIsDeleted: false },
+          { divisionIsDeleted: false },
+          { subjectIsDeleted: false },
+          { formIsDeleted: false },
+          { questionIsDeleted: false },
+          { formDeleted: false }, // This seems to be a duplicate of formIsDeleted, but including both for safety
+        ];
+      }
+
+      // Apply additional filters
       if (academicYearId) {
         snapshotWhereClause.academicYearId = academicYearId;
       }
@@ -1531,14 +1867,6 @@ class AnalyticsService {
 
       if (subjectId) {
         snapshotWhereClause.subjectId = subjectId;
-      }
-
-      if (semesterId) {
-        snapshotWhereClause.semesterId = semesterId;
-      }
-
-      if (divisionId) {
-        snapshotWhereClause.divisionId = divisionId;
       }
 
       if (semesterId) {
