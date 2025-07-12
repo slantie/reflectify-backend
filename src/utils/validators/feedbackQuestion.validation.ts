@@ -23,7 +23,7 @@ export const updateQuestionCategorySchema = createQuestionCategorySchema
 // Zod schema for validating the creation of a new Feedback Question.
 export const createFeedbackQuestionSchema = z.object({
   formId: z.string().uuid('Invalid form ID format. Must be a UUID.'),
-  categoryId: z.string().uuid('Invalid category ID format. Must be a UUID.'),
+  categoryId: z.string(),
   facultyId: z.string().uuid('Invalid faculty ID format. Must be a UUID.'),
   subjectId: z.string().uuid('Invalid subject ID format. Must be a UUID.'),
   batch: z.string().optional().default('None'),

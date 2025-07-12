@@ -40,6 +40,7 @@ interface AddQuestionToFormInput {
 
 interface UpdateFormInput {
   title?: string;
+  description?: string;
   status?: FormStatus;
   startDate?: string;
   endDate?: string;
@@ -334,11 +335,18 @@ class FeedbackFormService {
         throw new AppError('Feedback form not found or is deleted.', 404);
       }
 
+      console.log('Received Data', data);
+
       const dataToUpdate: Prisma.FeedbackFormUpdateInput = {
         ...data,
+        title: data.title || existingForm.title,
+        status: data.status || existingForm.status,
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         endDate: data.endDate ? new Date(data.endDate) : undefined,
+        description: data.description,
       };
+
+      console.log(`Updating form with ID ${id} with data:`, dataToUpdate);
 
       const updatedForm = await prisma.feedbackForm.update({
         where: { id: id, isDeleted: false },
@@ -364,6 +372,60 @@ class FeedbackFormService {
           },
         },
       });
+      console.log(`Returning: Updated form: ${updatedForm.description}`);
+
+      // Send email notification if the form is active
+      if (updatedForm.status === 'ACTIVE') {
+        console.log(
+          `Checking for override students for form ${updatedForm.id}`
+        );
+        const hasOverrideStudents = await prisma.feedbackFormOverride.findFirst(
+          {
+            where: {
+              feedbackFormId: updatedForm.id,
+              isDeleted: false,
+              overrideStudents: {
+                some: {
+                  isDeleted: false,
+                },
+              },
+            },
+            include: {
+              overrideStudents: {
+                where: {
+                  isDeleted: false,
+                },
+                select: {
+                  id: true,
+                  email: true,
+                },
+              },
+            },
+          }
+        );
+
+        console.log(
+          `Override students found:`,
+          hasOverrideStudents ? hasOverrideStudents.overrideStudents.length : 0
+        );
+
+        if (
+          hasOverrideStudents &&
+          hasOverrideStudents.overrideStudents.length > 0
+        ) {
+          console.log('Sending emails to override students');
+          await emailService.sendFormAccessEmailToOverrideStudents(
+            updatedForm.id
+          );
+        } else {
+          console.log('Sending emails to regular division students');
+          await emailService.sendFormAccessEmail(
+            updatedForm.id,
+            updatedForm.divisionId
+          );
+        }
+      }
+
       return updatedForm;
     } catch (error: any) {
       console.error(

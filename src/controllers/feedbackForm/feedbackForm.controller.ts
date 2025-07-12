@@ -76,7 +76,10 @@ export const updateForm = asyncHandler(async (req: Request, res: Response) => {
   const { id } = idParamSchema.parse(req.params);
   const validatedData = updateFormSchema.parse(req.body);
 
-  const updatedForm = await feedbackFormService.updateForm(id, validatedData);
+  const updatedForm = await feedbackFormService.updateForm(id, {
+    ...validatedData,
+    description: validatedData.description ?? undefined,
+  });
 
   res.status(200).json({
     status: 'success',

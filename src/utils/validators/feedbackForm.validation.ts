@@ -26,7 +26,7 @@ export const generateFormsSchema = z.object({
 
 // Zod schema for validating the creation of a new feedback question when adding to an existing form.
 export const addQuestionToFormSchema = z.object({
-  categoryId: z.string().uuid('Invalid category ID format. Must be a UUID.'),
+  categoryId: z.string(),
   facultyId: z.string().uuid('Invalid faculty ID format. Must be a UUID.'),
   subjectId: z.string().uuid('Invalid subject ID format. Must be a UUID.'),
   batch: z.string().optional().default('None'),
@@ -42,7 +42,7 @@ export const addQuestionToFormSchema = z.object({
 // Zod schema for validating the update of an existing feedback form.
 export const updateFormSchema = z
   .object({
-    title: z.string().min(1, 'Form title cannot be empty.').optional(),
+    title: z.string().optional(),
     status: z.nativeEnum(FormStatus).optional(),
     startDate: z
       .string()
@@ -56,6 +56,7 @@ export const updateFormSchema = z
         'Invalid end date format. Must be a valid ISO 8601 date string.'
       )
       .optional(),
+    description: z.string().nullable().optional().default(''),
     isDeleted: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {

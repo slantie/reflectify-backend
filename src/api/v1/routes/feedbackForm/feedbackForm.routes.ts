@@ -82,6 +82,13 @@ router.patch(
   updateFormStatus
 );
 
+// Update Form Details - Title, Description, etc.
+router.patch(
+  '/:id/details',
+  authorizeRoles(Designation.SUPER_ADMIN, Designation.HOD),
+  updateForm
+);
+
 // --- Override Students Routes ---
 
 // POST /api/v1/feedback-forms/:id/override-students/upload

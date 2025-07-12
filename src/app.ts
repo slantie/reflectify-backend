@@ -22,7 +22,7 @@ app.use(
     origin:
       process.env.NODE_ENV === 'production'
         ? 'https://reflectify.live'
-        : 'http://localhost:3000',
+        : ['http://localhost:3000', 'http://192.168.29.136:3000'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   })
