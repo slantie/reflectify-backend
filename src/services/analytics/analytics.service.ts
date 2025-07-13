@@ -79,7 +79,8 @@ interface FacultyPerformanceYearDataOutput {
   Faculty_name: string;
   academic_year: string;
   total_average: number | null;
-  [key: string]: string | number | null;
+  total_responses?: number; // Add total responses field
+  [key: string]: string | number | null | undefined;
 }
 
 interface AllFacultyPerformanceDataOutput {
@@ -1148,6 +1149,7 @@ class AnalyticsService {
           Faculty_name: facultyData.Faculty_name,
           academic_year: facultyData.academic_year,
           total_average: null,
+          total_responses: facultyData.totalCount, // Add total responses count
         };
 
         for (let i = 1; i <= maxSemesterNumber; i++) {

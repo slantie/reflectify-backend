@@ -19,13 +19,13 @@ const router = Router();
 // Define routes for Academic Years
 router.route('/').post(createAcademicYear).get(getAllAcademicYears);
 
+// Route to get the active academic year (must come before /:id route)
+router.route('/active').get(getActiveAcademicYear);
+
 router
   .route('/:id')
   .get(getAcademicYearById)
   .patch(updateAcademicYear)
   .delete(deleteAcademicYear);
-
-// Route to get the active academic year
-router.route('/active').get(getActiveAcademicYear);
 
 export default router;

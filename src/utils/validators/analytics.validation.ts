@@ -52,7 +52,6 @@ export const facultyPerformanceParamsSchema = z.object({
 
 // Schema for all faculty performance parameters.
 export const allFacultyPerformanceParamsSchema = z.object({
-  academicYearId: z
-    .string()
-    .uuid('Invalid academicYearId format. Must be a UUID.'),
+  academicYearId: z.string(),
+  // .uuid('Invalid academicYearId format. Must be a UUID.'),
 });
