@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec \"ts-node -T\" src/server.ts",
     "build": "node src/build.js",
-    "vercel-build": "tsc",
     "start": "node dist/server.js",
     "lint": "prettier --write .",
     "postinstall": "prisma generate",

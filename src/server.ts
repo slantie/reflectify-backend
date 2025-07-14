@@ -5,20 +5,25 @@
  */
 
 import app from './app';
+import config from './config';
 import { setupScheduledTasks } from './utils/scheduler';
-import { VercelRequest, VercelResponse } from '@vercel/node';
 
-setupScheduledTasks(); // ✅ this runs once per cold start
+const PORT = config.port;
 
 // Start the Express server and listen on the specified port.
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  app(req as any, res as any); // let Express handle it
-}
+const server = app.listen(PORT, () => {
+  console.log(`Server running in ${config.nodeEnv} mode on port ${PORT}`);
+  console.log(`Access API at: http://localhost:${PORT}/api/v1`);
+  setupScheduledTasks();
+});
 
 // Handle unhandled promise rejections globally.
 process.on('unhandledRejection', (err: Error) => {
   console.error('UNHANDLED REJECTION! 💥 Shutting down...');
   console.error(err.name, err.message);
+  server.close(() => {
+    process.exit(1);
+  });
 });
 
 // Handle uncaught exceptions globally.
