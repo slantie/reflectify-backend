@@ -14,25 +14,20 @@ const COLLEGE_ID = 'LDRP-ITR'; // Consider making this configurable if more coll
 // Simple in-memory cache for the primary college data
 const collegeCache = new Map<string, College>();
 
-// Interface for college data, matching the Prisma schema structure for INPUT
+// Interface for college data, matching the updated Prisma schema structure
 interface CollegeDataInput {
   name: string;
   websiteUrl: string;
   address: string;
   contactNumber: string;
-  logo: string;
-  // Use Prisma.InputJsonValue for data going INTO Prisma operations
-  images: Prisma.InputJsonValue;
 }
 
-// Default college data for initial upsert, ensuring 'images' is a valid InputJsonValue
+// Default college data for initial upsert
 const defaultCollegeData: CollegeDataInput = {
   name: 'LDRP Institute of Technology and Research',
   websiteUrl: 'https://www.ldrp.ac.in',
   address: 'Gujarat',
   contactNumber: '7923241492',
-  logo: 'ldrp_logo.png',
-  images: {},
 };
 
 class CollegeService {
@@ -69,22 +64,19 @@ class CollegeService {
       // Clear cache before upsert to ensure fresh data is fetched
       collegeCache.clear();
 
-      // Prepare data for Prisma, explicitly handling 'images' null value if present
-      const imagesForPrisma =
-        data.images === null ? Prisma.JsonNull : data.images;
+      // Prepare data for Prisma
+      const createData = {
+        id: COLLEGE_ID,
+        ...defaultCollegeData,
+        ...data,
+      };
+
+      const updateData = { ...data };
 
       const college = await prisma.college.upsert({
         where: { id: COLLEGE_ID },
-        create: {
-          id: COLLEGE_ID, // Explicitly providing ID for upsert's create branch
-          ...defaultCollegeData,
-          ...data,
-          images: imagesForPrisma, // Use the prepared images value
-        } as Prisma.CollegeUncheckedCreateInput, // Cast to UncheckedCreateInput to allow 'id'
-        update: {
-          ...data,
-          images: imagesForPrisma, // Use the prepared images value
-        } as Prisma.CollegeUpdateInput, // Cast to UpdateInput
+        create: createData as Prisma.CollegeUncheckedCreateInput,
+        update: updateData as Prisma.CollegeUpdateInput,
         include: {
           departments: true, // Include departments for the response
         },
@@ -107,7 +99,6 @@ class CollegeService {
   // Retrieves the primary college, using cache for faster retrieval.
   public async getPrimaryCollege(): Promise<College | null> {
     // Try to get from cache first
-    // Explicitly type 'college' to allow for null or undefined
     let college: College | null | undefined = collegeCache.get(COLLEGE_ID);
     if (college) {
       return college;
@@ -148,16 +139,9 @@ class CollegeService {
       // Clear cache before update to ensure fresh data is fetched
       collegeCache.clear();
 
-      // Prepare data for Prisma, explicitly handling 'images' null value if present
-      const imagesForPrisma =
-        data.images === null ? Prisma.JsonNull : data.images;
-
       const college = await prisma.college.update({
         where: { id: COLLEGE_ID, isDeleted: false }, // Ensure it's active
-        data: {
-          ...data,
-          images: imagesForPrisma, // Use the prepared images value
-        },
+        data: data,
         include: {
           departments: true, // Include departments for response
         },
@@ -206,17 +190,10 @@ class CollegeService {
       // Clear cache before update
       collegeCache.clear();
 
-      // Prepare data for Prisma, explicitly handling 'images' null value if present
-      const imagesForPrisma =
-        updates.images === null ? Prisma.JsonNull : updates.images;
-
       const college = await prisma.$transaction(async (tx) => {
         const result = await tx.college.update({
           where: { id: COLLEGE_ID, isDeleted: false }, // Ensure it's active
-          data: {
-            ...updates,
-            images: imagesForPrisma, // Use the prepared images value
-          },
+          data: updates,
           include: {
             departments: {
               where: { isDeleted: false },

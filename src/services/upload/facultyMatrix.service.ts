@@ -178,8 +178,6 @@ class FacultyMatrixUploadService {
           websiteUrl: 'https://ldrp.ac.in',
           address: 'Sector 15, Gandhinagar, Gujarat',
           contactNumber: '+91-79-23241492',
-          logo: 'ldrp-logo.png',
-          images: {},
           isDeleted: false,
         },
         update: {},

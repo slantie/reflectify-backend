@@ -75,18 +75,15 @@ model OTP {
 
 // Defines the College model.
 model College {
-    id            String  @id @default(uuid())
-    name          String  @unique
-    websiteUrl    String  @map("website_url")
+    id            String       @id @default(uuid())
+    name          String       @unique
+    websiteUrl    String       @map("website_url")
     address       String
-    contactNumber String  @map("contact_number")
-    logo          String
-    images        Json
-    isDeleted     Boolean @default(false) @map("is_deleted")
-
-    departments Department[]
-    createdAt   DateTime     @default(now()) @map("created_at")
-    updatedAt   DateTime     @updatedAt @map("updated_at")
+    contactNumber String       @map("contact_number")
+    isDeleted     Boolean      @default(false) @map("is_deleted")
+    departments   Department[]
+    createdAt     DateTime     @default(now()) @map("created_at")
+    updatedAt     DateTime     @updatedAt @map("updated_at")
 
     @@map("colleges")
 }
@@ -332,6 +329,7 @@ model FeedbackForm {
     divisionId          String     @map("division_id")
     subjectAllocationId String     @map("subject_allocation_id")
     title               String
+    description         String?
     startDate           DateTime   @map("start_date")
     endDate             DateTime   @map("end_date")
     isExpired           Boolean?   @default(false)

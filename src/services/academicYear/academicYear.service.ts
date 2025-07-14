@@ -8,6 +8,14 @@ import { AcademicYear } from '@prisma/client';
 import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 
+// Custom type to include count information for academic year
+type AcademicYearWithCounts = AcademicYear & {
+  _count: {
+    semesters: number;
+    subjectAllocations: number;
+  };
+};
+
 class AcademicYearService {
   // Creates a new academic year.
   public async createAcademicYear(data: {
@@ -49,10 +57,22 @@ class AcademicYearService {
   }
 
   // Retrieves all academic years, excluding soft-deleted ones by default.
-  public async getAllAcademicYears(): Promise<AcademicYear[]> {
+  public async getAllAcademicYears(): Promise<AcademicYearWithCounts[]> {
     try {
       const academicYears = await prisma.academicYear.findMany({
         where: { isDeleted: false }, // Filter out soft-deleted records
+        include: {
+          _count: {
+            select: {
+              semesters: {
+                where: { isDeleted: false }, // Only count non-deleted semesters
+              },
+              subjectAllocations: {
+                where: { isDeleted: false }, // Only count non-deleted subject allocations
+              },
+            },
+          },
+        },
         orderBy: {
           yearString: 'desc', // Order by year string descending
         },
@@ -64,10 +84,24 @@ class AcademicYearService {
   }
 
   // Retrieves a single academic year by its ID, excluding soft-deleted ones.
-  public async getAcademicYearById(id: string): Promise<AcademicYear | null> {
+  public async getAcademicYearById(
+    id: string
+  ): Promise<AcademicYearWithCounts | null> {
     try {
       const academicYear = await prisma.academicYear.findUnique({
         where: { id: id, isDeleted: false }, // Ensure it's not soft-deleted
+        include: {
+          _count: {
+            select: {
+              semesters: {
+                where: { isDeleted: false }, // Only count non-deleted semesters
+              },
+              subjectAllocations: {
+                where: { isDeleted: false }, // Only count non-deleted subject allocations
+              },
+            },
+          },
+        },
       });
       return academicYear;
     } catch (error: any) {
@@ -140,10 +174,22 @@ class AcademicYearService {
   }
 
   // Gets the currently active academic year.
-  public async getActiveAcademicYear(): Promise<AcademicYear | null> {
+  public async getActiveAcademicYear(): Promise<AcademicYearWithCounts | null> {
     try {
       const activeAcademicYear = await prisma.academicYear.findFirst({
         where: { isActive: true, isDeleted: false },
+        include: {
+          _count: {
+            select: {
+              semesters: {
+                where: { isDeleted: false }, // Only count non-deleted semesters
+              },
+              subjectAllocations: {
+                where: { isDeleted: false }, // Only count non-deleted subject allocations
+              },
+            },
+          },
+        },
       });
       return activeAcademicYear;
     } catch (error: any) {
