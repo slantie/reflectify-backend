@@ -5,6 +5,7 @@
  */
 
 import { Router } from 'express';
+
 import academicYearRoutes from './academicYear/academicYear.routes';
 import authRoutes from './auth/auth.routes';
 import collegeRoutes from './college/college.routes';

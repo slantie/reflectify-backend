@@ -8,7 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import AppError from './utils/appError';
-import apiV1Router from './api/v1/routes';
+import apiV1Router from './api/v1/routes/index';
 import serviceRouter from './api/v1/routes/service/service.routes';
 
 const app: Application = express();

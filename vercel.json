@@ -2,17 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "src/server.ts",
-      "use": "@vercel/node",
-      "config": {
-        "installCommand": "npm install"
-      }
+      "src": "api/index.ts",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "dist/server.js"
+      "src": "/api/(.*)",
+      "dest": "api/index.ts"
     }
   ]
 }
