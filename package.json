@@ -6,10 +6,9 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec \"ts-node -T\" src/server.ts",
     "build": "node src/build.js",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "lint": "prettier --write .",
-    "postinstall": "prisma generate",
-    "test:form-delete": "ts-node src/test/feedbackform-delete.test.ts"
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
