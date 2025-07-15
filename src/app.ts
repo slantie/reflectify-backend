@@ -21,8 +21,8 @@ app.use(
   cors({
     origin:
       process.env.NODE_ENV === 'production'
-        ? 'https://reflectify.live'
-        : ['http://localhost:3000', 'http://192.168.29.136:3000'],
+        ? process.env.FRONTEND_PROD_URL
+        : process.env.FRONTEND_DEV_URL,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   })
