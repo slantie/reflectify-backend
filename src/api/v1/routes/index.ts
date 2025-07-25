@@ -25,6 +25,7 @@ import dashboardRoutes from './dashboard/dashboard.routes';
 import academicStructureRoutes from './common/academicStructure.routes';
 import analyticsRoutes from './analytics/analytics.routes';
 import emailRoutes from './email/email.routes';
+import contactRoutes from './contact/contact.routes';
 
 const router = Router();
 
@@ -48,5 +49,6 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/academic-structure', academicStructureRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/emails', emailRoutes);
+router.use('/contact', contactRoutes);
 
 export default router;
