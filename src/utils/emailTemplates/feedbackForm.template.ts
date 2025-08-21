@@ -98,6 +98,9 @@ export const getFeedbackFormTemplate = (
         /* Styles for the call-to-action button */
         .button {
           display: inline-block;
+          text-align: center;
+          text: white;
+          text-color: white;
           background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
           color: white;
           padding: 16px 32px;
@@ -154,7 +157,7 @@ export const getFeedbackFormTemplate = (
     <body>
       <div class="email-container">
         <div class="header">
-          <h1>📝 Feedback Form Invitation</h1>
+          <h1>📄 Feedback Form Invitation</h1>
         </div>
         <div class="content">
           <div class="semester-info">
@@ -173,7 +176,7 @@ export const getFeedbackFormTemplate = (
           
           <div class="button-container">
             <a href="${apiUrl}/feedback/${accessLink}" class="button">
-              🚀 Access Feedback Form
+              ✔️ Access Feedback Form
             </a>
           </div>
           

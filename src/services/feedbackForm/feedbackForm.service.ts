@@ -16,6 +16,7 @@ import {
 import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
 import { emailService, EmailJobPayload } from '../email/email.service';
+import { getFeedbackFormTemplate } from '../../utils/emailTemplates/feedbackForm.template';
 
 interface SemesterSelection {
   id: string;
@@ -60,30 +61,46 @@ interface BulkUpdateFormStatusInput {
   endDate?: string;
 }
 
-// NEW: Helper function to generate email HTML. Placed here as it's specific to feedback forms.
-const createFeedbackFormEmailHtml = (
-  studentName: string,
-  accessToken: string
-): string => {
-  const formUrl = `${
+// NEW: Helper function to generate email HTML using the professional template.
+const createFeedbackFormEmailHtml = async (
+  accessToken: string,
+  formId: string
+): Promise<string> => {
+  const apiUrl =
     process.env.NODE_ENV === 'production'
       ? process.env.FRONTEND_PROD_URL
-      : process.env.FRONTEND_DEV_URL
-  }/feedback/${accessToken}`;
+      : process.env.FRONTEND_DEV_URL;
 
-  return `
-    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-      <h2>Student Feedback Form Invitation</h2>
-      <p>Dear ${studentName},</p>
-      <p>We need your valuable feedback. Please click the link below to access the form.</p>
-      <a href="${formUrl}" style="background-color: #007bff; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-block;">
-        Access Feedback Form
-      </a>
-      <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-      <p><a href="${formUrl}">${formUrl}</a></p>
-      <p>Thank you for your participation.</p>
-    </div>
-  `;
+  // Get form details to pass to the template
+  const form = await prisma.feedbackForm.findUnique({
+    where: { id: formId },
+    include: {
+      division: {
+        include: {
+          semester: true,
+        },
+      },
+    },
+  });
+
+  if (!form) {
+    // Fallback if form not found
+    return getFeedbackFormTemplate(
+      0,
+      'Unknown',
+      'Student Feedback Form',
+      accessToken,
+      apiUrl || 'http://localhost:3000'
+    );
+  }
+
+  return getFeedbackFormTemplate(
+    form.division.semester.semesterNumber,
+    form.division.divisionName,
+    form.title,
+    accessToken,
+    apiUrl || 'http://localhost:3000'
+  );
 };
 
 class FeedbackFormService {
@@ -893,6 +910,12 @@ class FeedbackFormService {
     formId: string,
     divisionId: string
   ): Promise<void> {
+    // Get form details for email subject
+    const form = await prisma.feedbackForm.findUnique({
+      where: { id: formId },
+      select: { title: true },
+    });
+
     const students = await prisma.student.findMany({
       where: { divisionId, isDeleted: false },
     });
@@ -906,31 +929,67 @@ class FeedbackFormService {
       `Attempting to queue feedback form emails for ${students.length} regular students.`
     );
 
+    let emailsQueued = 0;
+    let emailsSkipped = 0;
+
     for (const student of students) {
-      // Create a unique access token for each student for this form
-      const formAccess = await prisma.formAccess.create({
-        data: {
-          studentId: student.id,
-          formId: formId,
-          accessToken: this.generateHash(), // Using your existing hash function
+      // Check if FormAccess already exists for this student and form
+      let formAccess = await prisma.formAccess.findUnique({
+        where: {
+          form_student_unique: {
+            formId: formId,
+            studentId: student.id,
+          },
         },
       });
 
-      const emailHtml = createFeedbackFormEmailHtml(
-        student.name || 'Student',
-        formAccess.accessToken
-      );
-      const payload: EmailJobPayload = {
-        to: student.email,
-        subject: 'Invitation to Fill Student Feedback Form',
-        html: emailHtml,
-      };
+      // If FormAccess doesn't exist, create it
+      if (!formAccess) {
+        formAccess = await prisma.formAccess.create({
+          data: {
+            studentId: student.id,
+            formId: formId,
+            accessToken: this.generateHash(), // Using your existing hash function
+          },
+        });
 
-      await emailService.addEmailJobToQueue(
-        `send-form-access-to-${student.email}`,
-        payload
-      );
+        console.log(
+          `Created new FormAccess for regular student: ${student.email}`
+        );
+      } else {
+        console.log(
+          `FormAccess already exists for regular student: ${student.email}, skipping creation`
+        );
+      }
+
+      // Only send email if FormAccess exists and is not submitted
+      if (!formAccess.isSubmitted) {
+        const emailHtml = await createFeedbackFormEmailHtml(
+          formAccess.accessToken,
+          formId
+        );
+        const payload: EmailJobPayload = {
+          to: student.email,
+          subject: `📄 ${form?.title || 'Student Feedback Form'} - Your Input Required`,
+          html: emailHtml,
+        };
+
+        await emailService.addEmailJobToQueue(
+          `send-form-access-to-${student.email}`,
+          payload
+        );
+        emailsQueued++;
+      } else {
+        console.log(
+          `Skipping email for regular student ${student.email} - form already submitted`
+        );
+        emailsSkipped++;
+      }
     }
+
+    console.log(
+      `Regular students email summary: ${emailsQueued} emails queued, ${emailsSkipped} skipped (already submitted)`
+    );
   }
 
   /**
@@ -938,6 +997,12 @@ class FeedbackFormService {
    * @param formId - The ID of the feedback form.
    */
   public async queueEmailsForOverrideStudents(formId: string): Promise<void> {
+    // Get form details for email subject
+    const form = await prisma.feedbackForm.findUnique({
+      where: { id: formId },
+      select: { title: true },
+    });
+
     const override = await prisma.feedbackFormOverride.findFirst({
       where: { feedbackFormId: formId, isDeleted: false },
       include: {
@@ -957,30 +1022,67 @@ class FeedbackFormService {
       `Attempted to queue feedback form emails for ${students.length} override students.`
     );
 
+    let emailsQueued = 0;
+    let emailsSkipped = 0;
+
     for (const student of students) {
-      const formAccess = await prisma.formAccess.create({
-        data: {
-          overrideStudentId: student.id, // Fixed: Use overrideStudentId instead of studentId
-          formId: formId,
-          accessToken: this.generateHash(),
+      // Check if FormAccess already exists for this student and form
+      let formAccess = await prisma.formAccess.findUnique({
+        where: {
+          form_override_student_unique: {
+            formId: formId,
+            overrideStudentId: student.id,
+          },
         },
       });
 
-      const emailHtml = createFeedbackFormEmailHtml(
-        student.name || 'Student',
-        formAccess.accessToken
-      );
-      const payload: EmailJobPayload = {
-        to: student.email,
-        subject: 'Invitation to Fill Student Feedback Form',
-        html: emailHtml,
-      };
+      // If FormAccess doesn't exist, create it
+      if (!formAccess) {
+        formAccess = await prisma.formAccess.create({
+          data: {
+            overrideStudentId: student.id, // Fixed: Use overrideStudentId instead of studentId
+            formId: formId,
+            accessToken: this.generateHash(),
+          },
+        });
 
-      await emailService.addEmailJobToQueue(
-        `send-form-access-to-override-${student.email}`,
-        payload
-      );
+        console.log(
+          `Created new FormAccess for override student: ${student.email}`
+        );
+      } else {
+        console.log(
+          `FormAccess already exists for override student: ${student.email}, skipping creation`
+        );
+      }
+
+      // Only send email if FormAccess exists and is not submitted
+      if (!formAccess.isSubmitted) {
+        const emailHtml = await createFeedbackFormEmailHtml(
+          formAccess.accessToken,
+          formId
+        );
+        const payload: EmailJobPayload = {
+          to: student.email,
+          subject: `📄 ${form?.title || 'Student Feedback Form'} - Your Input Required`,
+          html: emailHtml,
+        };
+
+        await emailService.addEmailJobToQueue(
+          `send-form-access-to-override-${student.email}`,
+          payload
+        );
+        emailsQueued++;
+      } else {
+        console.log(
+          `Skipping email for override student ${student.email} - form already submitted`
+        );
+        emailsSkipped++;
+      }
     }
+
+    console.log(
+      `Override students email summary: ${emailsQueued} emails queued, ${emailsSkipped} skipped (already submitted)`
+    );
   }
 
   /**
