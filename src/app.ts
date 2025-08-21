@@ -7,6 +7,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import './services/email/worker';
 import AppError from './utils/appError';
 import apiV1Router from './api/v1/routes';
 import serviceRouter from './api/v1/routes/service/service.routes';

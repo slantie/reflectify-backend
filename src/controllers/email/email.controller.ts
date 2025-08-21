@@ -1,42 +1,32 @@
-/**
- * @file src/controllers/email/email.controller.ts
- * @description Controller for triggering email sending operations.
- * Handles request validation and delegates to EmailService.
- */
+// src/controllers/email/email.controller.ts
 
 import { Request, Response } from 'express';
-import { emailService } from '../../services/email/email.service';
 import asyncHandler from '../../utils/asyncHandler';
-import AppError from '../../utils/appError';
-import { z, ZodError } from 'zod';
+import { feedbackFormService } from '../../services/feedbackForm/feedbackForm.service';
 
-const sendFormAccessEmailBodySchema = z.object({
-  formId: z.string().uuid('Invalid form ID format. Must be a UUID.'),
-  divisionId: z.string().uuid('Invalid division ID format. Must be a UUID.'),
-});
-
+/**
+ * Handles the API request to send form access emails for a specific form.
+ * This is now a non-blocking operation that queues emails for background sending.
+ */
 export const sendFormAccessEmails = asyncHandler(
-  // Triggers the sending of feedback form access emails to students in a specific division.
   async (req: Request, res: Response) => {
-    try {
-      const { formId, divisionId } = sendFormAccessEmailBodySchema.parse(
-        req.body
-      );
+    // Assuming the form ID is passed in the request body.
+    const { formId } = req.body;
 
-      await emailService.sendFormAccessEmail(formId, divisionId);
-
-      res.status(200).json({
-        status: 'success',
-        message: 'Feedback form access emails are being sent.',
+    if (!formId) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'A formId is required in the request body.',
       });
-    } catch (error) {
-      if (error instanceof ZodError) {
-        throw new AppError(
-          `Validation error: ${error.errors.map((e) => e.message).join(', ')}`,
-          400
-        );
-      }
-      throw error;
     }
+
+    // Call the service to queue the emails.
+    const emailCount =
+      await feedbackFormService.queueEmailsForFeedbackForm(formId);
+
+    res.status(202).json({
+      status: 'success',
+      message: `${emailCount} emails have been successfully queued for delivery.`,
+    });
   }
 );

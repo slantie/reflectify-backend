@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { Designation } from '@prisma/client';
 import { sendFormAccessEmails } from '../../../../controllers/email/email.controller';
+import { sendTestEmail } from '../../../../controllers/email/test.controller';
 import {
   isAuthenticated,
   authorizeRoles,
@@ -14,7 +15,10 @@ import {
 
 const router = Router();
 
-// Apply authentication middleware to all email routes
+// Test route (no authentication required for testing in development)
+router.post('/test', sendTestEmail);
+
+// Apply authentication middleware to all other email routes
 router.use(isAuthenticated);
 
 // Route to trigger sending feedback form access emails

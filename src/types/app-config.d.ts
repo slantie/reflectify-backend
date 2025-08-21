@@ -4,4 +4,5 @@ declare interface AppConfig {
   databaseUrl?: string;
   jwtSecret: string;
   jwtExpiresIn: string | number;
+  redisUrl?: string;
 }

@@ -15,7 +15,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../common/prisma.service';
 import AppError from '../../utils/appError';
-import { emailService } from '../email/email.service';
+import { emailService, EmailJobPayload } from '../email/email.service';
 
 interface SemesterSelection {
   id: string;
@@ -59,6 +59,32 @@ interface BulkUpdateFormStatusInput {
   startDate?: string;
   endDate?: string;
 }
+
+// NEW: Helper function to generate email HTML. Placed here as it's specific to feedback forms.
+const createFeedbackFormEmailHtml = (
+  studentName: string,
+  accessToken: string
+): string => {
+  const formUrl = `${
+    process.env.NODE_ENV === 'production'
+      ? process.env.FRONTEND_PROD_URL
+      : process.env.FRONTEND_DEV_URL
+  }/feedback/${accessToken}`;
+
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+      <h2>Student Feedback Form Invitation</h2>
+      <p>Dear ${studentName},</p>
+      <p>We need your valuable feedback. Please click the link below to access the form.</p>
+      <a href="${formUrl}" style="background-color: #007bff; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-block;">
+        Access Feedback Form
+      </a>
+      <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+      <p><a href="${formUrl}">${formUrl}</a></p>
+      <p>Thank you for your participation.</p>
+    </div>
+  `;
+};
 
 class FeedbackFormService {
   // Ensures essential question categories exist.
@@ -409,17 +435,12 @@ class FeedbackFormService {
           hasOverrideStudents ? hasOverrideStudents.overrideStudents.length : 0
         );
 
-        if (
-          hasOverrideStudents &&
-          hasOverrideStudents.overrideStudents.length > 0
-        ) {
-          console.log('Sending emails to override students');
-          await emailService.sendFormAccessEmailToOverrideStudents(
-            updatedForm.id
-          );
+        if (hasOverrideStudents) {
+          console.log('Queuing emails for override students');
+          await this.queueEmailsForOverrideStudents(updatedForm.id);
         } else {
-          console.log('Sending emails to regular division students');
-          await emailService.sendFormAccessEmail(
+          console.log('Queuing emails for regular division students');
+          await this.queueEmailsForDivision(
             updatedForm.id,
             updatedForm.divisionId
           );
@@ -667,17 +688,12 @@ class FeedbackFormService {
           hasOverrideStudents ? hasOverrideStudents.overrideStudents.length : 0
         );
 
-        if (
-          hasOverrideStudents &&
-          hasOverrideStudents.overrideStudents.length > 0
-        ) {
-          console.log('Sending emails to override students');
-          await emailService.sendFormAccessEmailToOverrideStudents(
-            updatedForm.id
-          );
+        if (hasOverrideStudents) {
+          console.log('Queuing emails for override students');
+          await this.queueEmailsForOverrideStudents(updatedForm.id);
         } else {
-          console.log('Sending emails to regular division students');
-          await emailService.sendFormAccessEmail(
+          console.log('Queuing emails for regular division students');
+          await this.queueEmailsForDivision(
             updatedForm.id,
             updatedForm.divisionId
           );
@@ -867,6 +883,159 @@ class FeedbackFormService {
       console.error('Error in FeedbackFormService.expireOldForms:', error);
       throw new AppError('Failed to expire old forms.', 500);
     }
+  }
+  /**
+   * NEW: Queues access emails for all regular students in a division for a specific form.
+   * @param formId - The ID of the feedback form.
+   * @param divisionId - The ID of the division.
+   */
+  public async queueEmailsForDivision(
+    formId: string,
+    divisionId: string
+  ): Promise<void> {
+    const students = await prisma.student.findMany({
+      where: { divisionId, isDeleted: false },
+    });
+
+    if (students.length === 0) {
+      console.log(`No regular students found in division ${divisionId}.`);
+      return;
+    }
+
+    console.log(
+      `Attempting to queue feedback form emails for ${students.length} regular students.`
+    );
+
+    for (const student of students) {
+      // Create a unique access token for each student for this form
+      const formAccess = await prisma.formAccess.create({
+        data: {
+          studentId: student.id,
+          formId: formId,
+          accessToken: this.generateHash(), // Using your existing hash function
+        },
+      });
+
+      const emailHtml = createFeedbackFormEmailHtml(
+        student.name || 'Student',
+        formAccess.accessToken
+      );
+      const payload: EmailJobPayload = {
+        to: student.email,
+        subject: 'Invitation to Fill Student Feedback Form',
+        html: emailHtml,
+      };
+
+      await emailService.addEmailJobToQueue(
+        `send-form-access-to-${student.email}`,
+        payload
+      );
+    }
+  }
+
+  /**
+   * NEW: Queues access emails for override students for a specific form.
+   * @param formId - The ID of the feedback form.
+   */
+  public async queueEmailsForOverrideStudents(formId: string): Promise<void> {
+    const override = await prisma.feedbackFormOverride.findFirst({
+      where: { feedbackFormId: formId, isDeleted: false },
+      include: {
+        overrideStudents: {
+          where: { isDeleted: false },
+        },
+      },
+    });
+
+    const students = override?.overrideStudents;
+    if (!students || students.length === 0) {
+      console.log(`No override students found for form ${formId}.`);
+      return;
+    }
+
+    console.log(
+      `Attempted to queue feedback form emails for ${students.length} override students.`
+    );
+
+    for (const student of students) {
+      const formAccess = await prisma.formAccess.create({
+        data: {
+          overrideStudentId: student.id, // Fixed: Use overrideStudentId instead of studentId
+          formId: formId,
+          accessToken: this.generateHash(),
+        },
+      });
+
+      const emailHtml = createFeedbackFormEmailHtml(
+        student.name || 'Student',
+        formAccess.accessToken
+      );
+      const payload: EmailJobPayload = {
+        to: student.email,
+        subject: 'Invitation to Fill Student Feedback Form',
+        html: emailHtml,
+      };
+
+      await emailService.addEmailJobToQueue(
+        `send-form-access-to-override-${student.email}`,
+        payload
+      );
+    }
+  }
+
+  /**
+   * NEW: Main method to queue emails for a feedback form.
+   * Automatically determines whether to send to division students or override students.
+   * @param formId - The ID of the feedback form.
+   * @returns The number of emails queued.
+   */
+  public async queueEmailsForFeedbackForm(formId: string): Promise<number> {
+    // First, get the form to check its structure
+    const form = await prisma.feedbackForm.findUnique({
+      where: { id: formId, isDeleted: false },
+      include: {
+        division: true,
+      },
+    });
+
+    if (!form) {
+      throw new AppError('Feedback form not found or is deleted.', 404);
+    }
+
+    // Check if this form has override students
+    const hasOverrideStudents = await prisma.feedbackFormOverride.findFirst({
+      where: {
+        feedbackFormId: formId,
+        isDeleted: false,
+      },
+      include: {
+        overrideStudents: {
+          where: { isDeleted: false },
+        },
+      },
+    });
+
+    let emailCount = 0;
+
+    if (
+      hasOverrideStudents &&
+      hasOverrideStudents.overrideStudents.length > 0
+    ) {
+      console.log('Queuing emails for override students');
+      await this.queueEmailsForOverrideStudents(formId);
+      emailCount = hasOverrideStudents.overrideStudents.length;
+    } else {
+      console.log('Queuing emails for regular division students');
+      await this.queueEmailsForDivision(formId, form.divisionId);
+
+      // Count the students in the division
+      const students = await prisma.student.findMany({
+        where: { divisionId: form.divisionId, isDeleted: false },
+      });
+      emailCount = students.length;
+    }
+
+    return emailCount;
   }
 }
 

@@ -4,7 +4,25 @@
 
 Reflectify is a comprehensive feedback management system for educational institutions. This API provides endpoints for managing academic structures, feedback forms, analytics, and user authentication.
 
-**Base URL:** `http://localhost:4000/api/v1` (Development) | `https://reflectify.live/api/v1` (Production)
+**Base URL:** `http://localhost:4000/api/v1` (Development) | `https://reflectify-backend.onrender.com/api/v1` (Production)
+
+## 🚨 Important Architectural Change
+
+**Student Data Management**: As of the latest version, the system has migrated from using the legacy `Student` table to the `OverrideStudent` table for all student data management. This is a critical architectural change that affects:
+
+- **Email Distribution**: All feedback form emails are now sent to students managed in the `OverrideStudent` table
+- **Form Access**: `FormAccess` records are created with `overrideStudentId` references instead of `studentId`
+- **Data Integrity**: The legacy `Student` table is no longer used for active operations
+- **Database Relations**: All student-related queries now target the `OverrideStudent` model
+
+### Email Queue System
+
+The system uses **Redis + BullMQ** for reliable email delivery with the following configuration:
+
+- **Rate Limiting**: 1 email per 4 seconds with exponential backoff
+- **Retry Logic**: 5 attempts with exponential delay starting at 4 seconds
+- **Queue Processing**: Background job processing with Gmail SMTP integration
+- **Fallback Mechanism**: Direct email sending when queue is unavailable
 
 ## Authentication & Authorization
 
@@ -1245,6 +1263,18 @@ JWT_EXPIRES_IN=7d
 SERVICE_API_KEY=your-service-api-key
 NODE_ENV=development|production
 PORT=4000
+
+# Email Configuration (Gmail SMTP)
+SMTP_USER=your-gmail-email@gmail.com
+SMTP_PASS=your-app-specific-password
+SMTP_FROM=your-display-name@gmail.com
+
+# Redis Configuration (for email queue)
+REDIS_URL=rediss://your-redis-url:6379
+
+# Frontend URLs (for email links)
+FRONTEND_DEV_URL=http://localhost:3000
+FRONTEND_PROD_URL=https://your-production-domain.com
 ```
 
 ### CORS Configuration
