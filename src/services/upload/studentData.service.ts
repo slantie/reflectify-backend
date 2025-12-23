@@ -266,11 +266,11 @@ class StudentDataUploadService {
     let skippedRowsDetails: string[] = [];
     let updatedRows = 0;
     let addedRows = 0;
-    let skippedCount = 0;
+    let _skippedCount = 0;
 
     try {
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(fileBuffer);
+      await workbook.xlsx.load(fileBuffer as any);
       const worksheet = workbook.getWorksheet(1);
 
       if (!worksheet) {
@@ -312,7 +312,7 @@ class StudentDataUploadService {
           const message = `Row ${rowNumber}: Skipping due to validation errors: ${errors}. Enrollment: '${rawData.enrollmentNumber}', Email: '${rawData.email}'.`;
           console.warn(message);
           skippedRowsDetails.push(message);
-          skippedCount++;
+          _skippedCount++;
           continue;
         }
 
@@ -409,7 +409,7 @@ class StudentDataUploadService {
                 const message = `Row ${rowNumber}: Skipping update for student with email '${email}': New enrollment number '${enrollmentNumber}' is already taken by another active student (ID: ${existingStudentWithNewEnrollmentNumber.id}).`;
                 console.warn(message);
                 skippedRowsDetails.push(message);
-                skippedCount++;
+                _skippedCount++;
                 continue;
               }
               dataToUpdate.enrollmentNumber = enrollmentNumber;
@@ -433,7 +433,7 @@ class StudentDataUploadService {
               const message = `Row ${rowNumber}: Skipping creation for student with enrollment number '${enrollmentNumber}': This enrollment number is already taken by an active student (ID: ${existingStudentByEnrollmentNumber.id}, Email: ${existingStudentByEnrollmentNumber.email}), but the email '${email}' is new. Manual review needed.`;
               console.warn(message);
               skippedRowsDetails.push(message);
-              skippedCount++;
+              _skippedCount++;
               continue;
             }
 
@@ -458,7 +458,7 @@ class StudentDataUploadService {
           const message = `Row ${rowNumber}: Error processing data for Enrollment '${enrollmentNumber}', Email '${email}': ${innerError.message || 'Unknown error'}.`;
           console.error(message, innerError);
           skippedRowsDetails.push(message);
-          skippedCount++;
+          _skippedCount++;
         }
       }
 

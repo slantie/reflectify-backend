@@ -44,7 +44,7 @@ class EmailService {
    */
   public async sendTransactionalEmail(payload: EmailJobPayload): Promise<void> {
     const mailOptions = {
-      from: `"Slantie Reflectify" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      from: `<${process.env.SMTP_FROM_NAME}> <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to: payload.to,
       subject: payload.subject,
       html: payload.html,

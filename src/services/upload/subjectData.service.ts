@@ -231,13 +231,13 @@ class SubjectDataUploadService {
   }> {
     let addedRows = 0;
     let updatedRows = 0;
-    let unchangedRows = 0;
-    let skippedRows = 0;
+    let _unchangedRows = 0;
+    let _skippedRows = 0;
     const skippedRowsDetails: string[] = [];
 
     try {
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(fileBuffer);
+      await workbook.xlsx.load(fileBuffer as any);
       const worksheet = workbook.getWorksheet(1);
 
       if (!worksheet) {
@@ -296,7 +296,7 @@ class SubjectDataUploadService {
           const message = `Row ${rowNumber}: Skipping due to validation errors: ${errors}. Subject Name: '${rawData.subjectName}', Dept: '${rawData.deptAbbreviationInput}'.`;
           console.warn(message);
           skippedRowsDetails.push(message);
-          skippedRows++;
+          _skippedRows++;
           continue;
         }
 
@@ -374,7 +374,7 @@ class SubjectDataUploadService {
             const isChanged =
               existingNormalizedData.name !== newSubjectData.name ||
               existingNormalizedData.subjectCode !==
-                newSubjectData.subjectCode ||
+              newSubjectData.subjectCode ||
               existingNormalizedData.type !== newSubjectData.type ||
               existingNormalizedData.semesterId !== semester.id;
 
@@ -393,7 +393,7 @@ class SubjectDataUploadService {
               });
               updatedRows++;
             } else {
-              unchangedRows++;
+              _unchangedRows++;
             }
           } else {
             await prisma.subject.create({
@@ -410,7 +410,7 @@ class SubjectDataUploadService {
           const message = `Row ${rowNumber}: Error processing data for Subject '${subjectName}', Dept: '${deptAbbreviationInput}': ${innerError.message || 'Unknown error'}.`;
           console.error(message, innerError);
           skippedRowsDetails.push(message);
-          skippedRows++;
+          _skippedRows++;
         }
       }
 

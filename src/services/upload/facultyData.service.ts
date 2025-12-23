@@ -183,13 +183,13 @@ class FacultyDataUploadService {
   }> {
     let addedRows = 0;
     let updatedRows = 0;
-    let unchangedRows = 0;
-    let skippedRows = 0;
+    let _unchangedRows = 0;
+    let _skippedRows = 0;
     const skippedRowsDetails: string[] = [];
 
     try {
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(fileBuffer);
+      await workbook.xlsx.load(fileBuffer as any);
       const worksheet = workbook.getWorksheet(1);
 
       if (!worksheet) {
@@ -232,7 +232,7 @@ class FacultyDataUploadService {
           const message = `Row ${rowNumber}: Skipping due to validation errors: ${errors}. Faculty Name: '${rawData.name}', Email: '${rawData.email}'.`;
           console.warn(message);
           skippedRowsDetails.push(message);
-          skippedRows++;
+          _skippedRows++;
           continue;
         }
 
@@ -286,7 +286,7 @@ class FacultyDataUploadService {
               const message = `Row ${rowNumber}: Invalid Joining Date string format (Column G): '${rawJoiningDateValue}'. Expected DD-MM-YYYY or DD/MM/YYYY if not a standard date cell.`;
               console.warn(message);
               skippedRowsDetails.push(message);
-              skippedRows++;
+              _skippedRows++;
               continue;
             }
           }
@@ -344,15 +344,15 @@ class FacultyDataUploadService {
               existingNormalizedData.name !== newNormalizedData.name ||
               existingNormalizedData.email !== newNormalizedData.email ||
               existingNormalizedData.abbreviation !==
-                newNormalizedData.abbreviation ||
+              newNormalizedData.abbreviation ||
               existingNormalizedData.designation !==
-                newNormalizedData.designation ||
+              newNormalizedData.designation ||
               existingNormalizedData.seatingLocation !==
-                newNormalizedData.seatingLocation ||
+              newNormalizedData.seatingLocation ||
               existingNormalizedData.joiningDate !==
-                newNormalizedData.joiningDate ||
+              newNormalizedData.joiningDate ||
               existingNormalizedData.departmentId !==
-                newNormalizedData.departmentId;
+              newNormalizedData.departmentId;
 
             if (isChanged) {
               await prisma.faculty.update({
@@ -370,7 +370,7 @@ class FacultyDataUploadService {
               });
               updatedRows++;
             } else {
-              unchangedRows++;
+              _unchangedRows++;
             }
           } else {
             await prisma.faculty.create({
@@ -416,7 +416,7 @@ class FacultyDataUploadService {
           const message = `Row ${rowNumber}: Error processing data for Faculty '${name}', Email '${email}': ${innerError.message || 'Unknown error'}.`;
           console.error(message, innerError);
           skippedRowsDetails.push(message);
-          skippedRows++;
+          _skippedRows++;
         }
       }
 
